@@ -161,7 +161,7 @@ class ProductEvent(Base):
         nullable=False,
     )
 
-    occured_at: Mapped[datetime] = mapped_column(
+    occurred_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
     )
