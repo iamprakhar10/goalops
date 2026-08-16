@@ -1,57 +1,136 @@
+"""
+Seed a small deterministic dataset for the simulated SaaS company.
+
+This script creates a controlled set of customer companies, subscriptions,
+company-level lifecycle events, employees, and employee-level product events.
+
+The dataset is intentionally deterministic rather than random. This allows
+us to know the underlying business pattern in advance and later verify
+whether our analytics and autonomous operator discover it correctly.
+"""
+
 from datetime import datetime, timedelta, timezone
 
+from sqlalchemy import delete
+
 from app.database.db import SessionLocal
-from app.database.models import Customer, ProductEvent, Subscription
+from app.database.models import (
+    Customer,
+    CustomerEvent,
+    Subscription,
+    User,
+    UserEvent,
+)
 
 
-def add_event(
+def create_customer_event(
     customer_id: int,
     event_name: str,
     occurred_at: datetime,
-) -> ProductEvent:
+) -> CustomerEvent:
     """
-    Create one product event for a customer.
+    Create a company-level lifecycle event.
 
-    This helper keeps the seed function easier to read.
+    Examples:
+    - started_trial
+    - started_onboarding
+    - completed_onboarding
+    - converted_to_paid
     """
 
-    return ProductEvent(
+    return CustomerEvent(
         customer_id=customer_id,
         event_name=event_name,
         occurred_at=occurred_at,
     )
 
 
-def seed_demo_data() -> None:
+def create_user_event(
+    user_id: int,
+    event_name: str,
+    occurred_at: datetime,
+) -> UserEvent:
     """
-    Insert a small deterministic SaaS dataset.
+    Create an employee-level product usage event.
 
-    This is intentionally NOT random.
+    Examples:
+    - logged_in
+    - connected_integration
+    - created_workflow
+    - ran_workflow
+    """
 
-    We want known patterns in the data so we can later verify
-    that analytics queries and the autonomous operator are able
-    to discover those patterns correctly.
+    return UserEvent(
+        user_id=user_id,
+        event_name=event_name,
+        occurred_at=occurred_at,
+    )
+
+
+def clear_demo_data() -> None:
+    """
+    Remove existing demo business data.
+
+    Child tables are deleted before parent tables because of foreign-key
+    relationships.
+
+    This makes the seed script repeatable during development.
     """
 
     db = SessionLocal()
 
     try:
-        # Prevent accidental duplicate seeding.
-        existing_customer = db.query(Customer).first()
+        db.execute(delete(UserEvent))
+        db.execute(delete(User))
+        db.execute(delete(CustomerEvent))
+        db.execute(delete(Subscription))
+        db.execute(delete(Customer))
 
-        if existing_customer is not None:
-            print("Database already contains customers. Seed skipped.")
-            return
+        db.commit()
 
+    except Exception:
+        db.rollback()
+        raise
+
+    finally:
+        db.close()
+
+
+def seed_demo_data() -> None:
+    """
+    Insert 20 deterministic customer companies.
+
+    The companies are divided into three groups:
+
+    Group 1:
+        6 activated companies.
+        They completed onboarding and became paid customers.
+
+    Group 2:
+        8 stalled trial companies.
+        They started onboarding but never completed it.
+
+    Group 3:
+        6 inactive trial companies.
+        They started a trial but barely used the product.
+
+    This creates a known relationship between product activation
+    and paid conversion that we can analyze later.
+    """
+
+    db = SessionLocal()
+
+    try:
         now = datetime.now(timezone.utc)
 
-        customers: list[Customer] = []
+        # ---------------------------------------------------------
+        # GROUP 1
+        #
+        # 6 companies successfully activate and become paid.
+        # ---------------------------------------------------------
 
-        # ---------------------------------------------------------
-        # Group 1:
-        # Customers who complete onboarding and convert to paid.
-        # ---------------------------------------------------------
         for i in range(1, 7):
+
             customer = Customer(
                 company_name=f"Activated Company {i}",
                 segment="smb",
@@ -59,50 +138,117 @@ def seed_demo_data() -> None:
             )
 
             db.add(customer)
+
+            # flush() sends the INSERT to PostgreSQL without committing.
+            #
+            # We need this so PostgreSQL gives the Customer an ID before
+            # we create related subscriptions, users, and events.
             db.flush()
+
+            trial_started_at = now - timedelta(days=30 - i)
 
             db.add(
                 Subscription(
                     customer_id=customer.id,
                     plan="starter",
                     status="active",
-                    started_at=now - timedelta(days=20 - i),
+                    started_at=trial_started_at,
                     ended_at=None,
                 )
             )
 
+            # Company-level lifecycle milestones.
             db.add_all(
                 [
-                    add_event(
+                    create_customer_event(
                         customer.id,
-                        "signed_up",
-                        now - timedelta(days=20 - i),
+                        "started_trial",
+                        trial_started_at,
                     ),
-                    add_event(
+                    create_customer_event(
                         customer.id,
                         "started_onboarding",
-                        now - timedelta(days=19 - i),
+                        trial_started_at + timedelta(days=1),
                     ),
-                    add_event(
-                        customer.id,
-                        "imported_data",
-                        now - timedelta(days=18 - i),
-                    ),
-                    add_event(
+                    create_customer_event(
                         customer.id,
                         "completed_onboarding",
-                        now - timedelta(days=17 - i),
+                        trial_started_at + timedelta(days=3),
+                    ),
+                    create_customer_event(
+                        customer.id,
+                        "converted_to_paid",
+                        trial_started_at + timedelta(days=7),
                     ),
                 ]
             )
 
-            customers.append(customer)
+            # Each company gets two employees using the product.
+            admin_user = User(
+                customer_id=customer.id,
+                name=f"Activated Admin {i}",
+                role="admin",
+            )
+
+            operations_user = User(
+                customer_id=customer.id,
+                name=f"Activated Operations {i}",
+                role="operations_manager",
+            )
+
+            db.add_all(
+                [
+                    admin_user,
+                    operations_user,
+                ]
+            )
+
+            db.flush()
+
+            # Employee-level product actions.
+            db.add_all(
+                [
+                    create_user_event(
+                        admin_user.id,
+                        "logged_in",
+                        trial_started_at,
+                    ),
+                    create_user_event(
+                        admin_user.id,
+                        "connected_integration",
+                        trial_started_at + timedelta(days=1),
+                    ),
+                    create_user_event(
+                        admin_user.id,
+                        "created_workflow",
+                        trial_started_at + timedelta(days=2),
+                    ),
+                    create_user_event(
+                        admin_user.id,
+                        "ran_workflow",
+                        trial_started_at + timedelta(days=3),
+                    ),
+                    create_user_event(
+                        operations_user.id,
+                        "logged_in",
+                        trial_started_at + timedelta(days=2),
+                    ),
+                    create_user_event(
+                        operations_user.id,
+                        "ran_workflow",
+                        trial_started_at + timedelta(days=4),
+                    ),
+                ]
+            )
 
         # ---------------------------------------------------------
-        # Group 2:
-        # Trial customers who started onboarding but did not finish.
+        # GROUP 2
+        #
+        # 8 companies start onboarding but get stuck.
         # ---------------------------------------------------------
+
         for i in range(1, 9):
+
             customer = Customer(
                 company_name=f"Stalled Company {i}",
                 segment="smb",
@@ -112,38 +258,65 @@ def seed_demo_data() -> None:
             db.add(customer)
             db.flush()
 
+            trial_started_at = now - timedelta(days=20 - i)
+
             db.add(
                 Subscription(
                     customer_id=customer.id,
                     plan="trial",
                     status="active",
-                    started_at=now - timedelta(days=10 - i),
+                    started_at=trial_started_at,
                     ended_at=None,
                 )
             )
 
             db.add_all(
                 [
-                    add_event(
+                    create_customer_event(
                         customer.id,
-                        "signed_up",
-                        now - timedelta(days=10 - i),
+                        "started_trial",
+                        trial_started_at,
                     ),
-                    add_event(
+                    create_customer_event(
                         customer.id,
                         "started_onboarding",
-                        now - timedelta(days=9 - i),
+                        trial_started_at + timedelta(days=1),
                     ),
                 ]
             )
 
-            customers.append(customer)
+            user = User(
+                customer_id=customer.id,
+                name=f"Stalled Admin {i}",
+                role="admin",
+            )
+
+            db.add(user)
+            db.flush()
+
+            db.add_all(
+                [
+                    create_user_event(
+                        user.id,
+                        "logged_in",
+                        trial_started_at,
+                    ),
+                    create_user_event(
+                        user.id,
+                        "connected_integration",
+                        trial_started_at + timedelta(days=1),
+                    ),
+                ]
+            )
 
         # ---------------------------------------------------------
-        # Group 3:
-        # Trial customers who never even started onboarding.
+        # GROUP 3
+        #
+        # 6 companies start trials but hardly use the product.
         # ---------------------------------------------------------
+
         for i in range(1, 7):
+
             customer = Customer(
                 company_name=f"Inactive Company {i}",
                 segment="smb",
@@ -153,29 +326,47 @@ def seed_demo_data() -> None:
             db.add(customer)
             db.flush()
 
+            trial_started_at = now - timedelta(days=10 - i)
+
             db.add(
                 Subscription(
                     customer_id=customer.id,
                     plan="trial",
                     status="active",
-                    started_at=now - timedelta(days=5 - i),
+                    started_at=trial_started_at,
                     ended_at=None,
                 )
             )
 
             db.add(
-                add_event(
+                create_customer_event(
                     customer.id,
-                    "signed_up",
-                    now - timedelta(days=5 - i),
+                    "started_trial",
+                    trial_started_at,
                 )
             )
 
-            customers.append(customer)
+            user = User(
+                customer_id=customer.id,
+                name=f"Inactive Admin {i}",
+                role="admin",
+            )
+
+            db.add(user)
+            db.flush()
+
+            # They logged in once and then effectively disappeared.
+            db.add(
+                create_user_event(
+                    user.id,
+                    "logged_in",
+                    trial_started_at,
+                )
+            )
 
         db.commit()
 
-        print(f"Seeded {len(customers)} customers.")
+        print("Seeded 20 customer companies.")
 
     except Exception:
         db.rollback()
@@ -186,4 +377,5 @@ def seed_demo_data() -> None:
 
 
 if __name__ == "__main__":
+    clear_demo_data()
     seed_demo_data()

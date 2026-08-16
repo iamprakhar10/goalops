@@ -1,3 +1,4 @@
+from __future__ import annotations
 from datetime import datetime
 
 from sqlalchemy import DateTime, String, func, ForeignKey
@@ -28,11 +29,23 @@ class Customer(Base):
         nullable=False,
     )
 
+    # Broad company category used for business analysis.
+    #
+    # Examples:
+    # - smb
+    # - midmarket
+    # - enterprise
     segment: Mapped[str] = mapped_column(
         String(50),
         nullable=False,
     )
 
+    # Current high-level state of the customer company.
+    #
+    # Examples:
+    # - trial
+    # - paid
+    # - churned
     status: Mapped[str] = mapped_column(
         String(50),
         nullable=False,
@@ -46,13 +59,18 @@ class Customer(Base):
     )
 
     # One customer may have subscription records over time 
-    subscriptions: Mapped[list["Subscription"]] = relationship(
+    subscriptions: Mapped[list[Subscription]] = relationship(
         back_populates='customer',
     )
 
-    #  One customer may generate many product events
-    product_events: Mapped[list['ProductEvent']] = relationship(
-        back_populates='customer',
+    # Company-level lifecycle milestones.
+    customer_events: Mapped[list[CustomerEvent]] = relationship(
+        back_populates="customer",
+    )
+
+    # Employees/users belonging to this customer company.
+    users: Mapped[list[User]] = relationship(
+        back_populates="customer",
     )
 
 
@@ -89,11 +107,25 @@ class Subscription(Base):
         nullable= False,
     )
 
+     # Commercial plan associated with this subscription.
+    #
+    # Examples:
+    # - trial
+    # - starter
+    # - pro
+    # - enterprise
     plan: Mapped[str] = mapped_column(
         String(50),
         nullable=False,
     )
 
+    # State of this particular subscription record.
+    #
+    # Examples:
+    # - active
+    # - converted
+    # - expired
+    # - cancelled
     status: Mapped[str] = mapped_column(
         String(50),
         nullable=False,
@@ -109,7 +141,7 @@ class Subscription(Base):
         nullable=True,
     )
 
-    customer: Mapped["Customer"] = relationship(
+    customer: Mapped[Customer] = relationship(
         back_populates='subscriptions',
     )
 
@@ -131,21 +163,27 @@ class Subscription(Base):
 
 
 
-
-
-class ProductEvent(Base):
+class CustomerEvent(Base):
     """
-    Represents something a customer did inside a SaaS product
-    
+    Represents a company-level lifecycle event or milestone.
+
+    These events describe changes in the customer company's journey
+    with our SaaS product.
+
+    They are not individual button clicks performed by employees.
+
     Examples:
-    - Signed_up
-    - Logged_in
-    - Started_onboarding
-    - imported_data
+    - started_trial
+    - started_onboarding
     - completed_onboarding
-    - used_automation
+    - converted_to_paid
+    - churned
+
+    For milestone events such as completed_onboarding, we normally
+    expect one occurrence for a particular customer journey.
     """
-    __tablename__ = "product_events"
+
+    __tablename__ = "customer_events"
 
     id: Mapped[int] = mapped_column(
         primary_key=True,
@@ -166,9 +204,164 @@ class ProductEvent(Base):
         nullable=False,
     )
 
-    customer: Mapped['Customer'] = relationship(
-        back_populates='product_events',
+    # Customer company associated with this lifecycle event.
+    customer: Mapped[Customer] = relationship(
+        back_populates="customer_events",
     )
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+class User(Base):
+    """
+    Represents an individual employee inside a customer company
+    Example:
+
+        Customer:
+            BrightDesk
+
+        Users:
+            Arjun - Sales Manager
+            Riya  - Support Manager
+            Kabir - Operations Manager
+    """
+
+    __tablename__ = 'users'
+
+    id: Mapped[int] = mapped_column(
+        primary_key=True,
+    )
+
+    customer_id: Mapped[int] = mapped_column(
+        ForeignKey("customers.id"),
+        nullable=False,
+    )
+
+    name: Mapped[str] = mapped_column(
+        String(200),
+        nullable=False,
+    )
+
+    # Job/function of the employee inside the customer company.
+    #
+    # Examples:
+    # - sales_manager
+    # - support_manager
+    # - operations_manager
+    # - admin
+    role:Mapped[int] = mapped_column(
+        String(100),
+        nullable=False,
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable= False,
+    )
+
+    # Company this employee belongs to.
+    customer: Mapped[Customer] = relationship(
+        back_populates="users",
+    )
+
+    # Product actions performed by this employee.
+    user_events: Mapped[list[UserEvent]] = relationship(
+        back_populates="user",
+    )
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+class UserEvent(Base):
+    """
+    Represents a product action performed by an individual employee
+    of customer company
+
+
+    These are different from CustomerEvent records.
+
+    CustomerEvent:
+        describes the company's lifecycle.
+
+    UserEvent:
+        describes what a human user did inside the product.
+
+    Examples:
+    - logged_in
+    - created_workflow
+    - ran_workflow
+    - connected_integration
+    - invited_user
+
+    These events may naturally happen many times.
+
+    """
+
+    __tablename__ = 'user_events'
+
+    id: Mapped[int] = mapped_column(
+        primary_key=True,
+    )
+
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id"),
+        nullable=False,
+    )
+
+    event_name: Mapped[str] = mapped_column(
+        String(100),
+        nullable=False,
+    )
+
+    occurred_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+    )
+
+    # Employee who performed this product action.
+    user: Mapped[User] = relationship(
+        back_populates='user_events'
+    )
+
+
+
+
+
 
 
 
