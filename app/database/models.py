@@ -73,6 +73,9 @@ class Customer(Base):
         back_populates="customer",
     )
 
+    support_tickets: Mapped[list[SupportTicket]] = relationship(
+    back_populates="customer",
+    )
 
 
 
@@ -376,3 +379,62 @@ class UserEvent(Base):
 
 
 
+
+
+
+class SupportTicket(Base):
+    """
+    Represents a support request created by a customer company
+
+    A ticket is attached to the customer company because it describes a
+    problem that customer company is experiencing with our SaaS product
+
+    Later we may also add the specific user who opened the ticket
+
+    Examples:
+    - integration setup problem
+    - workflow creation confusion
+    - billing question
+    - login problem
+    """
+
+    __tablename__ = 'support_tickets'
+
+    id: Mapped[int] = mapped_column(
+        primary_key=True,
+    )
+
+    customer_id: Mapped[int] = mapped_column(
+        ForeignKey("customers.id"),
+        nullable=False,
+    )
+
+    category: Mapped[str] = mapped_column(
+        String(100),
+        nullable=False,
+    )
+
+    subject: Mapped[str] = mapped_column(
+        String(200),
+        nullable=False,
+    )
+
+    description: Mapped[str] = mapped_column(
+        String(1000),
+        nullable=False,
+    )
+
+    status: Mapped[str] = mapped_column(
+        String(50),
+        nullable=False,
+        default="open",
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+    )
+
+    customer: Mapped[Customer] = relationship(
+        back_populates="support_tickets",
+    )

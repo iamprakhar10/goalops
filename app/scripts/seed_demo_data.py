@@ -20,6 +20,7 @@ from app.database.models import (
     Subscription,
     User,
     UserEvent,
+    SupportTicket,
 )
 
 
@@ -81,6 +82,7 @@ def clear_demo_data() -> None:
 
     try:
         db.execute(delete(UserEvent))
+        db.execute(delete(SupportTicket))
         db.execute(delete(User))
         db.execute(delete(CustomerEvent))
         db.execute(delete(Subscription))
@@ -240,6 +242,20 @@ def seed_demo_data() -> None:
                     ),
                 ]
             )
+            if i <= 2:
+                db.add(
+                    SupportTicket(
+                        customer_id=customer.id,
+                        category="billing",
+                        subject="Question about plan billing",
+                        description=(
+                            "We completed setup successfully but have a "
+                            "question about our subscription billing."
+                        ),
+                        status="resolved",
+                        created_at=trial_started_at + timedelta(days=8),
+                    )
+                )
 
         # ---------------------------------------------------------
         # GROUP 2
@@ -308,6 +324,30 @@ def seed_demo_data() -> None:
                     ),
                 ]
             )
+            # These stalled companies are intentionally given support
+            # problems related to integration setup.
+            #
+            # This creates a known hidden pattern:
+            #
+            # integration friction
+            #       ↓
+            # onboarding stalls
+            #
+            # Later our autonomous operator should discover this from
+            # the data rather than being told directly.
+            db.add(
+                SupportTicket(
+                    customer_id=customer.id,
+                    category="integration",
+                    subject="Integration setup problem",
+                    description=(
+                        "We are having trouble connecting our integration "
+                        "and cannot continue setting up the product."
+                    ),
+                    status="open",
+                    created_at=trial_started_at + timedelta(days=2),
+                )
+            )
 
         # ---------------------------------------------------------
         # GROUP 3
@@ -363,6 +403,21 @@ def seed_demo_data() -> None:
                     trial_started_at,
                 )
             )
+
+            if i <= 2:
+                db.add(
+                    SupportTicket(
+                        customer_id=customer.id,
+                        category="login",
+                        subject="Trouble signing in",
+                        description=(
+                            "One of our employees is having trouble "
+                            "signing in to the product."
+                        ),
+                        status="open",
+                        created_at=trial_started_at + timedelta(days=1),
+                    )
+                )
 
         db.commit()
 
