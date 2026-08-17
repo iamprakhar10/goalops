@@ -25,6 +25,11 @@ from app.database.models import (
 
 from app.simulation.state import SimulationState
 
+from app.simulation.interventions import (
+    ActiveIntervention,
+    InterventionDefinition,
+    get_intervention,
+)
 
 
 
@@ -43,7 +48,6 @@ from app.simulation.state import SimulationState
 
 
 
-GUIDED_INTEGRATION_HELP = "guided_integration_help"
 
 
 SIMULATION_START_DATE = datetime(
@@ -95,7 +99,7 @@ def clamp_probability(
 
 def calculate_onboarding_probability(
     profile: CustomerSimulationProfile,
-    guided_integration_help_active: bool,
+    intervention: InterventionDefinition,
 ) -> float:
     """
     Calculate the probability that a stalled customer completes onboarding.
@@ -116,10 +120,8 @@ def calculate_onboarding_probability(
         + (0.35 * profile.intent_score)
         + (0.25 * profile.engagement_score)
         - (0.45 * profile.integration_difficulty)
+        + intervention.onboarding_bonus
     )
-
-    if guided_integration_help_active:
-        probability += 0.45
 
     return clamp_probability(
         probability
@@ -145,18 +147,22 @@ def calculate_onboarding_probability(
 
 def calculate_conversion_probability(
         profile: CustomerSimulationProfile,
+        intevention: InterventionDefinition,
 ) -> float:
     """
     Calculates the probability that an onboarded trial company converts
     to a paid customer
 
-    Intent and engagement make conversion more likely
+    Strong customer Intent and engagement make conversion more likely
+
+    Some interventions may also provide a conversion bonus
     """
 
     probability = (
         .1
         + (.45* profile.intent_score)
         + (.3* profile.engagement_score)
+        + intevention.conversion_bonus
     )
 
     return clamp_probability(
@@ -179,34 +185,120 @@ def calculate_conversion_probability(
 
 
 
+
+
+
+
+def get_eligible_trial_customers(
+        db: Session,
+        intervention: InterventionDefinition,
+) -> list[Customer]:
+    """
+    Returns list of trial companies eligible for a particular 
+    intervention
+
+    If intervention targest a support-ticket category, only companies
+    with that problems are selected
+
+    Otherwise, trial companies that have started onboarding are eligible
+    """
+    statement = (
+        select(Customer)
+        .where(
+            Customer.status == "trial"
+        )
+        .order_by(
+            Customer.id
+        )
+    )
+
+    if intervention.target_ticket_category is not None:
+
+        statement = (
+            statement
+            .join(
+                SupportTicket,
+                SupportTicket.customer_id == Customer.id,
+            )
+            .where(
+                SupportTicket.category
+                == intervention.target_ticket_category
+            )
+            .distinct()
+        )
+
+    customers = list(
+        db.scalars(statement).all()
+    )
+
+    eligible_customers: list[Customer] = []
+
+    for customer in customers:
+        if customer_has_event(
+            db,
+            customer.id,
+            "started_onboarding",
+        ):
+            eligible_customers.append(
+                customer
+            )
+
+    return eligible_customers
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 def activate_intervention(
         state:SimulationState,
         intervention_name: str,
-) -> None:
+) -> ActiveIntervention:
     """
     Activates a business intervention in simulation
 
-    For now we support only:
+    The intervention definition will determine it's cost and duration
 
-        guided_integration_help
-
-    Later this function can validate a larger catalog of actions.
+    Launching an intervention doesn't directly change customer companies
+    behaviour/outcome. It only creates an active intervention whose 
+    effects will later be evaluated by the simulation engine
     """
 
-    allowed_interventions = {
-        GUIDED_INTEGRATION_HELP,
-    }
-
-    if intervention_name not in allowed_interventions:
-        raise ValueError(
-            f"Unknown intervention: {intervention_name}"
-        )
-
-    state.active_interventions.add(
+    definition = get_intervention(
         intervention_name
     )
 
+    if intervention_name in state.active_interventions:
+        raise ValueError(
+            f"Intervention already active: {intervention_name}"
+        )
 
+    active_intervention = ActiveIntervention(
+        name=definition.name,
+        started_day=state.current_day,
+        evaluation_day=(
+            state.current_day
+            + definition.duration_days
+        ),
+    )
+
+    state.active_interventions[
+        intervention_name
+    ] = active_intervention
+
+    state.total_spend += definition.cost
+
+    return active_intervention
 
 
 
@@ -328,62 +420,74 @@ def get_integration_problem_customers(
 
 
 
-def apply_guided_integration_help(
+def evaluate_intervention(
         db: Session,
         state: SimulationState,
+        active_intervention: ActiveIntervention,
 ) -> None:
     """
-    Simulate customer outcomes when guided integration help is active
+    Evaluates the outcome of one complete business intervention.
 
-    Eligible companies are evaluated INDEPENDENTLY
+    Eligible companies are evaluated indepndently
 
-    For each company:
-    1. Calculate it's onboarding probability
-    2. Randomly determine whether onboarding succeded
-    3. If onboarding succeeds, calculate conversion probability
-    4. Randomly determine whether the company becomes paid
+    The intervention will modify probabilities, while hidden customer
+    traits and randomness determine the actual outcome.
     """
 
-    if GUIDED_INTEGRATION_HELP not in state.active_interventions:
-        return
+    intervention = get_intervention(
+        active_intervention.name
+    )
 
-    customers = get_integration_problem_customers(db)
+    customers = get_eligible_trial_customers(
+        db=db,
+        intervention=intervention,
+    )
 
     current_time = (
         SIMULATION_START_DATE
-        + timedelta(days=state.current_day)
+        + timedelta(
+            days=active_intervention.evaluation_day
+        )
     )
 
-    # A deterministic seed means identical benchmark runs produce
-    # identical random outcomes.
     random_generator = random.Random(
-        state.random_seed + state.current_day
+        state.random_seed
+        + active_intervention.evaluation_day
     )
 
     newly_onboarded: list[
-        tuple[Customer, CustomerSimulationProfile]
+        tuple[
+            Customer,
+            CustomerSimulationProfile,
+        ]
     ] = []
 
-
     # ---------------------------------------------------------
-    # ONBOARDING
+    # ONBOARDING OUTCOME
     # ---------------------------------------------------------
 
     for customer in customers:
+        # we won't complete onboarding twice
+        if customer_has_event(
+            db,
+            customer.id,
+            'completed_onboarding',
+        ):
+            continue
+
         profile = customer.simulation_profile
 
         if profile is None:
             continue
 
         probability = calculate_onboarding_probability(
-            profile,
-            guided_integration_help_active=True,
+            profile=profile,
+            intervention=intervention,
         )
 
         random_draw = random_generator.random()
 
         if random_draw < probability:
-
             add_customer_event(
                 db,
                 customer.id,
@@ -398,30 +502,26 @@ def apply_guided_integration_help(
                 )
             )
 
-
     # ---------------------------------------------------------
-    # PAID CONVERSION
+    # PAID CONVERSION OUTCOME
     # ---------------------------------------------------------
 
     for customer, profile in newly_onboarded:
-
         probability = calculate_conversion_probability(
-            profile
+            profile,
+            intervention,
         )
 
         random_draw = random_generator.random()
+
         if random_draw < probability:
-
-            customer.status = "paid"
-
+            customer.status = 'paid'
             add_customer_event(
                 db,
                 customer.id,
                 "converted_to_paid",
                 current_time,
             )
-
-
 
 
 
@@ -443,6 +543,9 @@ def advance_days(
     Advance the fake business clock and applies active simulation
     rules
 
+    Any intervention whose evaluation day is reached during the time
+    jump is evaluated 
+
     Ofcoulrse no real world waiting will happen
 
     Eg.
@@ -457,12 +560,39 @@ def advance_days(
             "Days must be greater than zero"
         )
 
-    state.current_day += days
-
-    apply_guided_integration_help(
-        db,
-        state,
+    target_day = (
+        state.current_day + days
     )
+
+    completed_interventions: list[str] = []
+
+    for (
+        intevention_name,
+        active_intervention,
+    ) in state.active_interventions.items():
+
+        if (
+            active_intervention.evaluation_day
+            <= target_day
+        ):
+            evaluate_intervention(
+                db,
+                state,
+                active_intervention,
+            )
+
+            completed_interventions.append(
+                intevention_name
+            )
+
+    # Removing interventions whose outcomes have now been evaluated.
+    for intevention_name in completed_interventions:
+
+        del state.active_interventions[
+            intevention_name
+        ]
+
+    state.current_day = target_day
 
     db.flush()
 

@@ -11,7 +11,7 @@ interventions, and ask the simulation engine to advance time
 
 
 from dataclasses import dataclass, field
-
+from app.simulation.interventions import ActiveIntervention
 
 @dataclass
 class SimulationState:
@@ -28,8 +28,13 @@ class SimulationState:
 
     current_day: int = 0
 
-    active_interventions: set[str] = field(
-        default_factory=set,
+    active_interventions: dict[
+        str,
+        ActiveIntervention,
+    ] = field(
+        default_factory=dict,
     )
+
+    total_spend: float = 0.0
 
     random_seed: int = 42
