@@ -9,6 +9,7 @@ The sumulator will decide the consequences if interventions, not AI
 Th aotonomous oerator will eventually be allowed to choose actions,
 but it will not be allowed to directly modify customer outcomes
 """
+import random
 
 from datetime import datetime, timedelta, timezone
 
@@ -19,6 +20,7 @@ from app.database.models import (
     Customer,
     CustomerEvent,
     SupportTicket,
+    CustomerSimulationProfile,
 )
 
 from app.simulation.state import SimulationState
@@ -50,6 +52,125 @@ SIMULATION_START_DATE = datetime(
     1,
     tzinfo=timezone.utc,
 )
+
+
+
+
+
+
+
+
+
+def clamp_probability(
+     probability: float,   
+) -> float:
+    """
+    Restricting probability from 0 to 1
+    """
+
+    return max(
+        0.0,
+        min(1.0, probability)
+    )
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+def calculate_onboarding_probability(
+    profile: CustomerSimulationProfile,
+    guided_integration_help_active: bool,
+) -> float:
+    """
+    Calculate the probability that a stalled customer completes onboarding.
+
+    Higher customer intent and engagement increase the probability.
+
+    Greater integration difficulty decreases it.
+
+    Guided integration help significantly reduces the practical effect
+    of integration friction.
+
+    These coefficients define part of the hidden causal structure of
+    our simulated business world.
+    """
+
+    probability = (
+        0.15
+        + (0.35 * profile.intent_score)
+        + (0.25 * profile.engagement_score)
+        - (0.45 * profile.integration_difficulty)
+    )
+
+    if guided_integration_help_active:
+        probability += 0.45
+
+    return clamp_probability(
+        probability
+    )
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+def calculate_conversion_probability(
+        profile: CustomerSimulationProfile,
+) -> float:
+    """
+    Calculates the probability that an onboarded trial company converts
+    to a paid customer
+
+    Intent and engagement make conversion more likely
+    """
+
+    probability = (
+        .1
+        + (.45* profile.intent_score)
+        + (.3* profile.engagement_score)
+    )
+
+    return clamp_probability(
+        probability
+    )
+
+
+
+
+
+
+
+
+
 
 
 
@@ -183,12 +304,18 @@ def get_integration_problem_customers(
             Customer.status == "trial",
             SupportTicket.category == "integration",
         )
+        .order_by(
+            Customer.id
+        )
         .distinct()
     )
+    # The order_by(Customer.id) helps make benchmark runs 
+    # reproducible
 
     return list(
         db.scalars(statement).all()
     )
+
 
 
 
@@ -206,20 +333,15 @@ def apply_guided_integration_help(
         state: SimulationState,
 ) -> None:
     """
-    Applying the first simulated intervention
+    Simulate customer outcomes when guided integration help is active
 
-    Business rule for v1:
+    Eligible companies are evaluated INDEPENDENTLY
 
-    If guided integration help is active, trial companies that have
-    integration problems will become eligible to progress
-
-    To keep the first simulator deterministic and testable:
-
-    - first 4 eligible companies complete onboarding
-    - first 2 of those companies convert to paid
-
-    Later this deterministic rule will be replaced by probabilistic
-    behavior and richer customer characteristics.
+    For each company:
+    1. Calculate it's onboarding probability
+    2. Randomly determine whether onboarding succeded
+    3. If onboarding succeeds, calculate conversion probability
+    4. Randomly determine whether the company becomes paid
     """
 
     if GUIDED_INTEGRATION_HELP not in state.active_interventions:
@@ -232,30 +354,75 @@ def apply_guided_integration_help(
         + timedelta(days=state.current_day)
     )
 
-    # First four eligible companies successfull completd onboarding
-    onboarding_customers = customers[:4]
+    # A deterministic seed means identical benchmark runs produce
+    # identical random outcomes.
+    random_generator = random.Random(
+        state.random_seed + state.current_day
+    )
 
-    for customer in onboarding_customers:
-        add_customer_event(
-            db=db,
-            customer_id=customer.id,
-            event_name="completed_onboarding",
-            occurred_at=current_time,
+    newly_onboarded: list[
+        tuple[Customer, CustomerSimulationProfile]
+    ] = []
+
+
+    # ---------------------------------------------------------
+    # ONBOARDING
+    # ---------------------------------------------------------
+
+    for customer in customers:
+        profile = customer.simulation_profile
+
+        if profile is None:
+            continue
+
+        probability = calculate_onboarding_probability(
+            profile,
+            guided_integration_help_active=True,
         )
 
+        random_draw = random_generator.random()
 
-    # Of those four companies, two subsequently convert to paid.
-    converting_customers = onboarding_customers[:2]
+        if random_draw < probability:
 
-    for customer in converting_customers:
-        customer.status = "paid"
+            add_customer_event(
+                db,
+                customer.id,
+                "completed_onboarding",
+                current_time,
+            )
 
-        add_customer_event(
-            db,
-            customer.id,
-            "converted_to_paid",
-            current_time,
+            newly_onboarded.append(
+                (
+                    customer,
+                    profile,
+                )
+            )
+
+
+    # ---------------------------------------------------------
+    # PAID CONVERSION
+    # ---------------------------------------------------------
+
+    for customer, profile in newly_onboarded:
+
+        probability = calculate_conversion_probability(
+            profile
         )
+
+        random_draw = random_generator.random()
+        if random_draw < probability:
+
+            customer.status = "paid"
+
+            add_customer_event(
+                db,
+                customer.id,
+                "converted_to_paid",
+                current_time,
+            )
+
+
+
 
 
 
@@ -298,3 +465,21 @@ def advance_days(
     )
 
     db.flush()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

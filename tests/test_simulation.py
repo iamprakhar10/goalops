@@ -86,7 +86,7 @@ def test_guided_integration_help_improves_outcomes() -> None:
 
         assert state.current_day == 7
 
-        assert after_funnel["completed_onboarding"] == 10
+        assert after_funnel["completed_onboarding"] == 12
         assert after_funnel["converted_to_paid"] == 8
 
         assert after_conversion == 40.0

@@ -21,6 +21,7 @@ from app.database.models import (
     User,
     UserEvent,
     SupportTicket,
+    CustomerSimulationProfile,
 )
 
 
@@ -86,6 +87,7 @@ def clear_demo_data() -> None:
         db.execute(delete(User))
         db.execute(delete(CustomerEvent))
         db.execute(delete(Subscription))
+        db.execute(delete(CustomerSimulationProfile))
         db.execute(delete(Customer))
 
         db.commit()
@@ -156,6 +158,14 @@ def seed_demo_data() -> None:
                     status="active",
                     started_at=trial_started_at,
                     ended_at=None,
+                )
+            )
+            db.add(
+                CustomerSimulationProfile(
+                    customer_id=customer.id,
+                    intent_score=0.85,
+                    engagement_score=0.80,
+                    integration_difficulty=0.20,
                 )
             )
 
@@ -286,6 +296,16 @@ def seed_demo_data() -> None:
                 )
             )
 
+
+            db.add(
+                CustomerSimulationProfile(
+                    customer_id=customer.id,
+                    intent_score=0.65,
+                    engagement_score=0.45,
+                    integration_difficulty=0.85,
+                )
+            )
+
             db.add_all(
                 [
                     create_customer_event(
@@ -383,6 +403,17 @@ def seed_demo_data() -> None:
                     customer.id,
                     "started_trial",
                     trial_started_at,
+                )
+            )
+
+
+
+            db.add(
+                CustomerSimulationProfile(
+                    customer_id=customer.id,
+                    intent_score=0.20,
+                    engagement_score=0.15,
+                    integration_difficulty=0.35,
                 )
             )
 

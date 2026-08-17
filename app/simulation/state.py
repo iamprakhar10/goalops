@@ -31,3 +31,5 @@ class SimulationState:
     active_interventions: set[str] = field(
         default_factory=set,
     )
+
+    random_seed: int = 42

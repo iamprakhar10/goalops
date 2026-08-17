@@ -74,9 +74,13 @@ class Customer(Base):
     )
 
     support_tickets: Mapped[list[SupportTicket]] = relationship(
-    back_populates="customer",
+        back_populates="customer",
     )
 
+    simulation_profile:  Mapped[CustomerSimulationProfile | None] = relationship(
+        back_populates="customer",
+        uselist=False,
+    )
 
 
 
@@ -437,4 +441,74 @@ class SupportTicket(Base):
 
     customer: Mapped[Customer] = relationship(
         back_populates="support_tickets",
+    )
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+class CustomerSimulationProfile(Base):
+    """
+    Stores hidden simulaton traits for a customer company
+
+    These values represnet characterstics of the fake company that
+    influence how it behaves as simulated time advances.
+
+    The autonomous operator will not directly see these hidden values
+    It must infer likely causees from observable business data
+
+    Values will be between 0 and 1
+
+    intent_score:
+        How strongly the customer company wants/needs thte product
+
+    engagement_score:
+        How likely employees are to actively use the product
+
+    integration_difficulty:
+        How difficult product integration is for this coustomer
+        company
+    """
+
+    __tablename__ = "customer_simulation_profiles"
+
+    id: Mapped[int] = mapped_column(
+        primary_key=True,
+    )
+
+    customer_id : Mapped[int] = mapped_column(
+        ForeignKey("customers.id"),
+        unique=True,
+        nullable=False,
+    )
+
+    intent_score: Mapped[float] = mapped_column(
+        nullable=False,
+    )
+
+    engagement_score: Mapped[float] = mapped_column(
+        nullable=False,
+    )
+
+    integration_difficulty: Mapped[float] = mapped_column(
+        nullable=False,
+    )
+
+    customer: Mapped[Customer] = relationship(
+        back_populates="simulation_profile"
     )
