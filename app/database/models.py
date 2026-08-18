@@ -273,7 +273,7 @@ class User(Base):
     # - support_manager
     # - operations_manager
     # - admin
-    role:Mapped[int] = mapped_column(
+    role:Mapped[str] = mapped_column(
         String(100),
         nullable=False,
     )
@@ -454,7 +454,7 @@ class SupportTicket(Base):
 
 
 
-
+# role
 
 
 
