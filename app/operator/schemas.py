@@ -64,7 +64,7 @@ class OperatorDecision(BaseModel):
 
         For other actions this is zero.
     """
-
+    # No surprise fields allowed.
     model_config = ConfigDict(
         extra='forbid',
     )

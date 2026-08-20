@@ -9,6 +9,7 @@ business through MCP tools.
 """
 
 from typing import Any
+import json
 
 from mcp import Client
 from mcp.types import TextContent
@@ -119,4 +120,60 @@ class GoalOpsMCPClient:
                 + " ".join(error_messages)
             )
 
-        return result.structured_content
+        # -----------------------------------------------------
+        # BEST CASE:
+        # MCP returned real structured content.
+        # -----------------------------------------------------
+
+        if result.structured_content is not None:
+            return result.structured_content
+
+        # -----------------------------------------------------
+        # FALLBACK:
+        # MCP returned JSON as text instead.
+        # -----------------------------------------------------
+
+        text_blocks = [
+            block.text
+            for block in result.content
+            if isinstance(
+                block,
+                TextContent,
+            )
+        ]
+
+        if not text_blocks:
+            raise RuntimeError(
+                f"MCP tool '{tool_name}' returned no usable content"
+            )
+
+        text_result = "\n".join(
+            text_blocks
+        )
+        try:
+            return json.loads(
+                text_result
+            )
+
+        except json.JSONDecodeError as exc:
+            raise RuntimeError(
+                f"MCP tool '{tool_name}' returned "
+                "non-JSON text instead of structured data: "
+                f"{text_result}"
+            ) from exc
+
+
+#     So if MCP gives:
+
+# '{"status":"in_progress","current_value":30.0,...}'
+
+# we convert it into:
+
+# {
+#     "status": "in_progress",
+#     "current_value": 30.0,
+# }
+
+# and then this works:
+
+# goal_status["status"]
