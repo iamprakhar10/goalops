@@ -120,50 +120,70 @@ class GoalOpsMCPClient:
                 + " ".join(error_messages)
             )
 
-        # -----------------------------------------------------
-        # BEST CASE:
-        # MCP returned real structured content.
-        # -----------------------------------------------------
 
-        if result.structured_content is not None:
-            return result.structured_content
 
-        # -----------------------------------------------------
-        # FALLBACK:
-        # MCP returned JSON as text instead.
-        # -----------------------------------------------------
-
-        text_blocks = [
-            block.text
-            for block in result.content
-            if isinstance(
-                block,
-                TextContent,
-            )
-        ]
-
-        if not text_blocks:
+        if result.structured_content is None:
             raise RuntimeError(
-                f"MCP tool '{tool_name}' returned no usable content"
+                f"MCP tool '{tool_name}' returned no structured content"
             )
 
-        text_result = "\n".join(
-            text_blocks
-        )
-        try:
-            return json.loads(
-                text_result
-            )
+        return result.structured_content
+        # # -----------------------------------------------------
+        # # BEST CASE:
+        # # MCP returned real structured content.
+        # # -----------------------------------------------------
 
-        except json.JSONDecodeError as exc:
-            raise RuntimeError(
-                f"MCP tool '{tool_name}' returned "
-                "non-JSON text instead of structured data: "
-                f"{text_result}"
-            ) from exc
+        # if result.structured_content is not None:
+        #     return result.structured_content
+
+        # # -----------------------------------------------------
+        # # FALLBACK:
+        # # MCP returned JSON as text instead.
+        # # -----------------------------------------------------
+
+        # text_blocks = [
+        #     block.text
+        #     for block in result.content
+        #     if isinstance(
+        #         block,
+        #         TextContent,
+        #     )
+        # ]
+
+        # if not text_blocks:
+        #     raise RuntimeError(
+        #         f"MCP tool '{tool_name}' returned no usable content"
+        #     )
+
+        # text_result = "\n".join(
+        #     text_blocks
+        # )
+        # try:
+        #     return json.loads(
+        #         text_result
+        #     )
+
+        # except json.JSONDecodeError as exc:
+        #     raise RuntimeError(
+        #         f"MCP tool '{tool_name}' returned "
+        #         "non-JSON text instead of structured data: "
+        #         f"{text_result}"
+        #     ) from exc
 
 
-#     So if MCP gives:
+
+
+
+
+
+
+
+
+
+
+# # -----------------------------------------------------
+
+#     sometimes MCP may return JSON as text:
 
 # '{"status":"in_progress","current_value":30.0,...}'
 

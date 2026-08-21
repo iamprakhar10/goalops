@@ -9,6 +9,7 @@ of app.mcp.tools
 """
 
 from mcp.server import MCPServer
+from typing import Any
 
 from app.mcp.tools import (
     advance_simulation,
@@ -33,7 +34,7 @@ mcp = MCPServer(
 
 
 @mcp.tool()
-def business_snapshot() -> dict:
+def business_snapshot() -> dict[str, Any]:
     """
     Inspect the current observable state of business.
 
@@ -46,7 +47,7 @@ def business_snapshot() -> dict:
 
 
 @mcp.tool()
-def available_interventions() -> list[dict]:
+def available_interventions() -> list[dict[str, Any]]:
     """
     List the business interventions currently available to the operator
     """
@@ -59,7 +60,7 @@ def available_interventions() -> list[dict]:
 @mcp.tool()
 def run_intervention(
     intervention_name: str,
-) -> dict:
+) -> dict[str, Any]:
     """
     Launch one approved intervention.
 
@@ -77,7 +78,7 @@ def run_intervention(
 @mcp.tool()
 def advance_time(
     days: int,
-) -> dict:
+) -> dict[str, Any]:
     """
     Advance simulated business time.
 
@@ -95,7 +96,7 @@ def advance_time(
 
 
 @mcp.tool()
-def goal_status() -> dict:
+def goal_status() -> dict[str, Any]:
     """
     Evaluate the current business goal.
     """
