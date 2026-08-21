@@ -36,6 +36,13 @@ class OperatorRunState:
 
     decisions:
         Structured decisions produced by the LLM
+
+    final_goal_status:
+        Latest objective goal evaluation returned by the MCP server
+
+        This is stored so we can evaluate the complete run after the 
+        operator stops
+
     """
 
     iteration: int = 0
@@ -47,6 +54,8 @@ class OperatorRunState:
     decisions: list[OperatorDecision] = field(
         default_factory=list,
     )
+
+    final_goal_status: dict[str, Any] | None = None
 
 
 
@@ -253,6 +262,7 @@ async def run_operator(
             goal_status = await mcp_client.call_tool(
                 'goal_status'
             )
+            run_state.final_goal_status = goal_status
 
             print(
                 f"\n=== ITERATION "

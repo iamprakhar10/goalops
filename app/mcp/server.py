@@ -29,9 +29,11 @@ mcp = MCPServer(
 
 
 
-
-
-
+# dict[str, Any]
+# provides a proper generic object type from which the MCP server can
+# construct an output schema. Current MCP documentation describes
+# structured_content as the JSON form matching the tool's declared 
+# output schema
 
 @mcp.tool()
 def business_snapshot() -> dict[str, Any]:
@@ -108,3 +110,4 @@ if __name__ == "__main__":
     mcp.run(
         transport="stdio"
     )
+    

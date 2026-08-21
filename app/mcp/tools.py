@@ -242,11 +242,15 @@ def evaluate_business_goal() -> dict:
         return {
             "metric_name": business_goal.metric_name,
             "target_value": business_goal.target_value,
+
             "current_value": evaluation.current_value,
             "status": evaluation.status.value,
+
+            "max_budget": business_goal.max_budget,
             "budget_remaining": evaluation.budget_remaining,
+
+            "deadline_day": business_goal.deadline_day,
             "days_remaining": evaluation.days_remaining,
         }
-
     finally:
         db.close()
