@@ -512,3 +512,131 @@ class CustomerSimulationProfile(Base):
     customer: Mapped[Customer] = relationship(
         back_populates="simulation_profile"
     )
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+class SimulationRun(Base):
+    """
+    Represents one independent simulated business run
+
+    Each autonomous operator attempt gets its own SimulationRun
+
+    The run stores simulation state that previously existed
+    only in Python memory, allowing multiple runs to exist indpendently a
+    and survive application restarts
+    """
+
+    __tablename__ = 'simulation_runs'
+
+    id: Mapped[int] = mapped_column(
+        primary_key=True,
+    )
+
+    current_day: Mapped[int] = mapped_column(
+        default=0,
+    )
+
+    total_spend: Mapped[float] = mapped_column(
+        default=0.0,
+    )
+
+    random_seed: Mapped[int] = mapped_column()
+
+    status: Mapped[str] = mapped_column(
+        String(50),
+        default="active",
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+    )
+    interventions: Mapped[
+            list["SimulationRunIntervention"]
+        ] = relationship(
+            back_populates="simulation_run",
+            cascade="all, delete-orphan",
+        )
+
+
+
+"""
+simulation_runs
+       │
+       │ 1
+       │
+       │ many
+       ↓
+simulation_run_interventions
+"""
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+class SimulationRunIntervention(Base):
+    """
+    Reperesents one intervention launched during a simulation run
+
+    An intervention belongs to exactly one simulationRun and records
+    when it started and when should the simulator evaluate it
+    """
+
+    __tablename__ = "simulation_run_interventions"
+
+    id: Mapped[int] = mapped_column(
+        primary_key=True,
+    )
+
+    simulation_run_id: Mapped[int] = mapped_column(
+        ForeignKey("simulation_runs.id"),
+    )
+
+    intervention_name: Mapped[str] = mapped_column(
+        String(100),
+    )
+
+    started_day: Mapped[int] = mapped_column()
+
+    evaluation_day: Mapped[int] = mapped_column()
+
+    status: Mapped[str] = mapped_column(
+        String(50),
+        default="active",
+    )
+
+    simulation_run: Mapped["SimulationRun"] = relationship(
+        back_populates="interventions",
+    )
