@@ -73,6 +73,26 @@ class GoalOpsMCPClient:
             )
 
 
+
+
+    async def list_tools(
+            self,
+    ):
+        """
+        Return the tools currently exposed by the GoalOps MCP server
+
+        The operator can use these definitions to discover available
+        capabilities instead of relying on a hardcoded tool list
+        """
+
+        if self.client is None:
+            raise RuntimeError(
+                "MCP client is not connected"
+            )
+
+        return await self.client.list_tools()
+
+
     async def call_tool(
             self, 
             tool_name: str,
