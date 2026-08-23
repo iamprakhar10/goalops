@@ -24,15 +24,31 @@ async def main() -> None:
         # ---------------------------------------------------------
         # TEST 1: CALL goal_status
         # ---------------------------------------------------------
-        goal_status = await client.call_tool(
-            "goal_status"
+        run = await client.call_tool(
+            "create_run",
+            {
+                "random_seed": 123,
+            },
         )
 
-        print("\n=== GOAL STATUS RESULT ===")
-        print(goal_status)
+        run_id = run["run_id"]
 
-        print("\n=== GOAL STATUS PYTHON TYPE ===")
-        print(type(goal_status))
+        print(
+            "\nCREATED RUN:",
+            run
+        )
+
+        goal_status = await client.call_tool(
+            "goal_status",
+            {
+                "run_id": run_id,
+            },
+        )
+
+        print(
+            "\nGOAL STATUS:",
+            goal_status,
+        )
 
         # ---------------------------------------------------------
         # TEST 2: DISCOVER MCP TOOLS

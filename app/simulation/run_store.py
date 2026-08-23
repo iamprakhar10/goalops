@@ -133,3 +133,107 @@ def load_simulation_state(
         total_spend=simulation_run.total_spend,
         random_seed=simulation_run.random_seed,
     )
+
+
+
+
+
+
+
+
+
+
+def save_simulation_state(
+        db: Session,
+        run_id: int,
+        state: SimulationState,
+) -> None:
+    """
+    Perssist the current SimulationState
+
+    This stores
+    - current simulated day
+    - intervention spending
+    - random seed
+    - active interventions
+
+    Interventions that were previously active but are no longer in the 
+    SimulationState are marked completed
+
+    The function flushes but does not commit
+    """
+
+    simulation_run = get_simulation_run(
+        db,
+        run_id=run_id,
+    )
+
+    if simulation_run is None:
+        raise ValueError(
+            f"Simulation run {run_id} does not exist"
+        )
+
+    # ---------------------------------------------------------
+    # SAVE BASIC SIMULATION STATE
+    # ---------------------------------------------------------
+
+    simulation_run.current_day = state.current_day
+    simulation_run.total_spend = state.total_spend
+    simulation_run.random_seed = state.random_seed
+
+    # ---------------------------------------------------------
+    # LOAD CURRENTLY ACTIVE STORED INTERVENTIONS
+    # ---------------------------------------------------------
+
+    statement = (
+        select(SimulationRunIntervention)
+        .where(
+            SimulationRunIntervention.simulation_run_id
+            ==run_id,
+            SimulationRunIntervention.status
+            =='active',
+        )
+    )
+
+    stored_active_rows = list(
+        db.scalars(statement)
+    )
+
+    stored_by_name = {
+        row.intervention_name: row
+        for row in stored_active_rows
+    }
+
+    # ---------------------------------------------------------
+    # MARK FINISHED INTERVENTIONS AS COMPLETED
+    # ---------------------------------------------------------
+
+    for intervention_name, row in stored_by_name.items():
+        if (
+            intervention_name
+            not in state.active_interventions
+        ):
+            row.status = 'completed'
+
+    # ---------------------------------------------------------
+    # STORE NEWLY ACTIVE INTERVENTIONS
+    # ---------------------------------------------------------
+    for (
+        intervention_name,
+        active_intervention
+    ) in state.active_interventions.items():
+
+        if intervention_name in stored_by_name:
+            continue
+
+        row = SimulationRunIntervention(
+            simulation_run_id=run_id,
+            intervention_name=intervention_name,
+            started_day=active_intervention.started_day,
+            evaluation_day=active_intervention.evaluation_day,
+            status='active',
+        )
+
+        db.add(row)
+
+    db.flush()

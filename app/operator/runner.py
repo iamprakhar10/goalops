@@ -44,6 +44,7 @@ class OperatorRunState:
         operator stops
 
     """
+    run_id:int | None = None
 
     iteration: int = 0
 
@@ -101,6 +102,7 @@ def build_operator_context(
 async def execute_decision(
         mcp_client: GoalOpsMCPClient,
         decision: OperatorDecision,
+        run_id: int,
 ) -> dict[str, Any]:
     """
     Translate one LLM decision into one MCP tool call.
@@ -116,7 +118,10 @@ async def execute_decision(
         == OperatorAction.INSPECT_BUSINESS
         ):
         result = await mcp_client.call_tool(
-            "business_snapshot"
+            "business_snapshot",
+            {
+                "run_id": run_id,
+            },
         )
 
         return {
@@ -154,6 +159,7 @@ async def execute_decision(
             "run_intervention",
             {
                 "intervention_name": decision.intervention_name,
+                "run_id": run_id,
             }
         )
 
@@ -180,6 +186,7 @@ async def execute_decision(
             'advance_time',
             {
                 'days': decision.days,
+                "run_id": run_id,
             }
         )
 
@@ -197,7 +204,10 @@ async def execute_decision(
     ):
 
         result = await mcp_client.call_tool(
-            "goal_status"
+            "goal_status",
+            {
+                "run_id": run_id,
+            },
         )
 
         return {
@@ -228,7 +238,8 @@ async def execute_decision(
 
 
 async def run_operator(
-        max_iterations: int = 10,
+    max_iterations: int = 10,
+    random_seed: int=42,
 ) -> OperatorRunState:
     """
     Runs one autonomous business goal attempt
@@ -251,6 +262,19 @@ async def run_operator(
 
     async with GoalOpsMCPClient() as mcp_client:
 
+        run_result = await mcp_client.call_tool(
+            'create_run',
+            {
+                'random_seed': random_seed,
+            },
+        )
+
+        run_id = run_result['run_id']
+        run_state.run_id = run_id
+
+        print(
+            f"\nCreated simulation run: {run_id}"
+        )
         while (
             run_state.iteration
             < max_iterations
@@ -260,7 +284,10 @@ async def run_operator(
             # -------------------------------------------------
 
             goal_status = await mcp_client.call_tool(
-                'goal_status'
+                'goal_status',
+                {
+                    "run_id": run_id,
+                },
             )
             run_state.final_goal_status = goal_status
 
@@ -352,6 +379,7 @@ async def run_operator(
             observation = await execute_decision(
                 mcp_client,
                 decision,
+                run_id=run_id
             )
 
             run_state.observations.append(observation)

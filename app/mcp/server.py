@@ -17,6 +17,7 @@ from app.mcp.tools import (
     get_business_snapshot,
     launch_intervention,
     list_available_interventions,
+    create_business_run
 )
 
 
@@ -36,7 +37,9 @@ mcp = MCPServer(
 # output schema
 
 @mcp.tool()
-def business_snapshot() -> dict[str, Any]:
+def business_snapshot(
+    run_id: int,
+) -> dict[str, Any]:
     """
     Inspect the current observable state of business.
 
@@ -44,7 +47,24 @@ def business_snapshot() -> dict[str, Any]:
     support evidence, simulated day, and intervention spending
     """
 
-    return get_business_snapshot()
+    return get_business_snapshot(
+        run_id
+    )
+
+
+
+
+@mcp.tool()
+def create_run(
+    random_seed: int = 42,
+) -> dict[str, Any]:
+    """
+    Creates a new persistent GoalOps simulation run
+    """
+
+    return create_business_run(random_seed=random_seed)
+
+
 
 
 
@@ -62,6 +82,7 @@ def available_interventions() -> list[dict[str, Any]]:
 @mcp.tool()
 def run_intervention(
     intervention_name: str,
+    run_id: int,
 ) -> dict[str, Any]:
     """
     Launch one approved intervention.
@@ -72,7 +93,8 @@ def run_intervention(
     """
 
     return launch_intervention(
-        intervention_name
+        intervention_name=intervention_name,
+        run_id=run_id
     )
 
 
@@ -80,6 +102,7 @@ def run_intervention(
 @mcp.tool()
 def advance_time(
     days: int,
+    run_id: int,
 ) -> dict[str, Any]:
     """
     Advance simulated business time.
@@ -90,7 +113,8 @@ def advance_time(
     """
 
     return advance_simulation(
-        days
+        days=days,
+        run_id=run_id,
     )
 
 
@@ -98,12 +122,16 @@ def advance_time(
 
 
 @mcp.tool()
-def goal_status() -> dict[str, Any]:
+def goal_status(
+    run_id: int,
+) -> dict[str, Any]:
     """
     Evaluate the current business goal.
     """
 
-    return evaluate_business_goal()
+    return evaluate_business_goal(
+        run_id=run_id,
+    )
 
 
 if __name__ == "__main__":
