@@ -1,23 +1,41 @@
 """
-Tests for measurable business-goal evaluation.
+Tests for run-scoped business goal evaluation.
 
-These tests verify that GoalOps can objectively determine whether an
-autonomous operator has achieved a target, violated its budget, or
-missed its simulated deadline.
+Each test creates its own SimulationRun and deterministic business
+world so goal metrics are evaluated only for that run.
 """
 
-from app.database.db import SessionLocal
 from app.goals.evaluator import evaluate_goal
-from app.goals.models import (
-    BusinessGoal,
-    GoalStatus,
-)
+from app.goals.models import BusinessGoal
+from app.scripts.seed_demo_data import seed_business_world
+from app.simulation.run_store import create_simulation_run
 from app.simulation.state import SimulationState
 
 
-def make_conversion_goal() -> BusinessGoal:
+def create_seeded_run(
+    db_session,
+    random_seed: int = 42,
+):
     """
-    Return the first benchmark conversion goal.
+    Create one simulation run with the deterministic baseline business.
+    """
+
+    simulation_run = create_simulation_run(
+        db_session,
+        random_seed=random_seed,
+    )
+
+    seed_business_world(
+        db_session,
+        simulation_run_id=simulation_run.id,
+    )
+
+    return simulation_run
+
+
+def create_conversion_goal() -> BusinessGoal:
+    """
+    Return the first GoalOps benchmark goal.
     """
 
     return BusinessGoal(
@@ -28,82 +46,103 @@ def make_conversion_goal() -> BusinessGoal:
     )
 
 
-def test_goal_starts_in_progress() -> None:
+def test_goal_starts_in_progress(
+    db_session,
+) -> None:
     """
-    Baseline conversion is below the target, so the benchmark
-    should initially be in progress.
-    """
-
-    db = SessionLocal()
-
-    try:
-        state = SimulationState()
-        goal = make_conversion_goal()
-
-        evaluation = evaluate_goal(
-            db,
-            state,
-            goal,
-        )
-
-        assert evaluation.current_value == 30.0
-        assert evaluation.status == GoalStatus.IN_PROGRESS
-        assert evaluation.budget_remaining == 2000.0
-        assert evaluation.days_remaining == 30
-
-    finally:
-        db.close()
-
-
-def test_goal_fails_when_budget_is_exceeded() -> None:
-    """
-    Spending above the allowed budget should immediately fail the goal.
+    Baseline conversion is 30 percent, below the 40 percent target,
+    so the goal should initially be in progress.
     """
 
-    db = SessionLocal()
+    simulation_run = create_seeded_run(
+        db_session,
+    )
 
-    try:
-        state = SimulationState(
-            total_spend=2500.0,
-        )
+    state = SimulationState(
+        current_day=0,
+        total_spend=0.0,
+        random_seed=42,
+    )
 
-        goal = make_conversion_goal()
+    goal = create_conversion_goal()
 
-        evaluation = evaluate_goal(
-            db,
-            state,
-            goal,
-        )
+    result = evaluate_goal(
+        db_session,
+        simulation_run.id,
+        state,
+        goal,
+    )
 
-        assert evaluation.status == GoalStatus.FAILED
-        assert evaluation.budget_remaining == -500.0
+    assert result.current_value == 30.0
+    assert result.status == "in_progress"
 
-    finally:
-        db.close()
+    assert result.budget_remaining == 2000.0
+    assert result.days_remaining == 30
 
 
-def test_goal_fails_at_deadline_without_target() -> None:
+def test_goal_fails_when_budget_is_exceeded(
+    db_session,
+) -> None:
     """
-    A goal fails if its deadline arrives before the target is reached.
+    The goal should fail when intervention spending exceeds the
+    maximum allowed budget before the target has been achieved.
     """
 
-    db = SessionLocal()
+    simulation_run = create_seeded_run(
+        db_session,
+    )
 
-    try:
-        state = SimulationState(
-            current_day=30,
-        )
+    state = SimulationState(
+        current_day=5,
+        total_spend=2100.0,
+        random_seed=42,
+    )
 
-        goal = make_conversion_goal()
+    goal = create_conversion_goal()
 
-        evaluation = evaluate_goal(
-            db,
-            state,
-            goal,
-        )
+    result = evaluate_goal(
+        db_session,
+        simulation_run.id,
+        state,
+        goal,
+    )
 
-        assert evaluation.status == GoalStatus.FAILED
-        assert evaluation.days_remaining == 0
+    assert result.current_value == 30.0
+    assert result.status == "failed"
 
-    finally:
-        db.close()
+    assert result.budget_remaining == -100.0
+    assert result.days_remaining == 25
+
+
+def test_goal_fails_at_deadline_without_target(
+    db_session,
+) -> None:
+    """
+    Reaching the deadline without achieving the target should fail
+    the business goal.
+    """
+
+    simulation_run = create_seeded_run(
+        db_session,
+    )
+
+    state = SimulationState(
+        current_day=30,
+        total_spend=500.0,
+        random_seed=42,
+    )
+
+    goal = create_conversion_goal()
+
+    result = evaluate_goal(
+        db_session,
+        simulation_run.id,
+        state,
+        goal,
+    )
+
+    assert result.current_value == 30.0
+    assert result.status == "failed"
+
+    assert result.budget_remaining == 1500.0
+    assert result.days_remaining == 0
