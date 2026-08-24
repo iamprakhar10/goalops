@@ -14,7 +14,7 @@ from dataclasses import dataclass
 
 from app.operator.runner import OperatorRunState
 from app.operator.schemas import OperatorAction
-
+from app.operator.tool_runner import ToolOperatorRunState
 
 
 
@@ -166,6 +166,122 @@ def evaluate_operator_run(
             interventions_launched
         ),
         inspected_business=inspected_business,
+        inspected_before_first_intervention=(
+            inspected_before_first_intervention
+        ),
+    )
+
+
+
+
+#_________________________________________________________
+
+# For tool operator
+#_________________________________________________________
+
+
+def evaluate_tool_operator_run(
+        run_state: ToolOperatorRunState,
+) -> OperatorRunEvaluation:
+    """
+    Evaluate one COMPLETED MCP-native operator run
+
+    The new operator does not record OperatorDecision objects, instead
+    evaluation uses the actual MCP tools that Groq selected
+    ans the application executed
+    """
+
+    if run_state.final_goal_status is None:
+        raise ValueError(
+            "Can not evaluate tool operator run "
+            "without final goal status"
+        )
+
+
+    # ---------------------------------------------------------
+    # FIND INTERVENTIONS THAT WERE ACTUALLY LAUNCHED
+    # ---------------------------------------------------------
+
+    interventions_launched = [
+        tool_call['arguments']['intervention_name']
+        for tool_call in run_state.tool_calls
+        if (
+            tool_call['tool_name']
+            == 'run_intervention'
+            and tool_call['arguments'].get(
+                'intervention_name'
+            )
+        )
+    ]
+
+    # ---------------------------------------------------------
+    # DID THE AGENT INSPECT THE BUSINESS?
+    # ---------------------------------------------------------
+
+    inspected_business = any(
+        tool_call['tool_name']
+        == 'business_snapshot'
+        for tool_call in run_state.tool_calls
+    )
+
+    # ---------------------------------------------------------
+    # DID INSPECTION HAPPEN BEFORE FIRST INTERVENTION?
+    # ---------------------------------------------------------
+
+    first_inspection_index: int | None = None
+    first_intervention_index: int | None = None
+
+    for index, tool_call in enumerate(
+        run_state.tool_calls
+    ):
+        if (
+            tool_call['tool_name']
+            == 'business_snapshot'
+            and first_inspection_index is None
+        ):
+            first_inspection_index = index
+
+        if (
+            tool_call['tool_name']
+            == 'run_intervention'
+            and first_intervention_index is None
+        ):
+            first_intervention_index = index
+
+    inspected_before_first_intervention = (
+        first_inspection_index is not None
+        and first_intervention_index is not None
+        and first_inspection_index
+        < first_intervention_index
+    )
+
+    goal_status = run_state.final_goal_status
+
+    return OperatorRunEvaluation(
+        goal_status=goal_status["status"],
+        final_metric=goal_status["current_value"],
+        target_value=goal_status["target_value"],
+
+        total_spend=(
+            goal_status["max_budget"]
+            - goal_status["budget_remaining"]
+        ),
+
+        days_used=(
+            goal_status["deadline_day"]
+            - goal_status["days_remaining"]
+        ),
+
+        decisions_made=len(
+            run_state.tool_calls
+        ),
+
+        interventions_launched=(
+            interventions_launched
+        ),
+
+        inspected_business=inspected_business,
+
         inspected_before_first_intervention=(
             inspected_before_first_intervention
         ),

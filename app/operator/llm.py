@@ -13,6 +13,7 @@ This makes it easier to repace groq in future if needed
 import json
 import os
 
+from typing import Any
 from dotenv import load_dotenv
 from groq import Groq
 
@@ -127,6 +128,32 @@ class LLMClient:
         return OperatorDecision.model_validate(
             response_data
         )
+
+
+    def create_tool_call_response(
+            self,
+            messages: list[dict[str, Any]],
+            tools: list[dict[str, Any]],
+    ):
+        """
+        Ask Groq to choose whether to call one or more available tools
+
+        The tool definitions come directly from the MCP server
+
+        Grok does not execute the tools. It only returns structures 
+        tool-call requests containing:
+        - tool name
+        - tool arguments
+        - tool-call ID
+        """
+
+        return self.client.chat.completions.create(
+            model=self.model,
+            messages=messages,
+            tools=tools,
+            tool_choice='auto',
+        )
+        
 
 
 

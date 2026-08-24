@@ -29,7 +29,7 @@ def mcp_tools_to_groq(
 
     groq_tools: list[dict[str, Any]] = []
 
-    for tool in mcp_tools.tools:
+    for tool in mcp_tools:
 
         groq_tools.append(
             {
