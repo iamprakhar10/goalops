@@ -1,150 +1,61 @@
 """
-Support analytics services for teh simulated SaaS company
+Run-scoped support-ticket analytics for the simulated SaaS business.
 
-This module analyses support-ticket data to identify common 
-customer problems and connect those problems with customer 
-lifecycle states.
-
-These functions will later provide evidence to our Autonomous busainess
-operator when it will investigate why business metrics are underperforming
+Every analytics function accepts a simulation run ID so support data
+from one simulated business world is never mixed with another run.
 """
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.database.models import Customer, SupportTicket
-
-
-
-
-
-
-
-
-
-
+from app.database.models import (
+    Customer,
+    SupportTicket,
+)
 
 
 def get_support_ticket_count(
-        db: Session,
+    db: Session,
+    run_id: int,
 ) -> int:
     """
-    Returns the total munber of support ticket
+    Return the total number of support tickets belonging to one
+    simulation run.
     """
 
-    statement = select(
-        func.count(SupportTicket.id)
+    statement = (
+        select(
+            func.count(SupportTicket.id)
+        )
+        .join(
+            Customer,
+            SupportTicket.customer_id == Customer.id,
+        )
+        .where(
+            Customer.simulation_run_id == run_id
+        )
     )
 
     count = db.scalar(statement)
 
     return count or 0
-
-
-
-
-
-
-
-
-
 
 
 def get_ticket_count_by_category(
-        db: Session,
+    db: Session,
+    run_id: int,
 ) -> dict[str, int]:
     """
-    Returns support-ticket counts grouped by category
-
-    Eg.
-        {
-            "integration": 8,
-            "billing": 2,
-            "login": 2,
-        }
-    """
-
-    statement = (
-        select(
-            SupportTicket.category,
-            func.count(SupportTicket.id),
-        )
-        .group_by(
-            SupportTicket.category
-        )
-    )
-
-    rows = db.execute(statement).all()
-
-    return {
-        category: count
-        for category, count in rows
-    }
-
-
-
-
-
-
-
-
-
-
-
-
-
-def get_customers_with_ticket_category(
-        db: Session,
-        category: str,
-) -> int:
-    """
-    Returns the number of unique customer companies that have
-    at least one support ticket in a particular category
-
-    A company may open multiple support tickets, so distinct customer
-    IDs prevent them from getting counted more than once
-    """
-    statement = (
-        select(
-            func.count(
-                func.distinct(SupportTicket.customer_id)
-            )
-        )
-        .where(
-            SupportTicket.category == category
-        )
-    )
-
-    count = db.scalar(statement)
-
-    return count or 0
-
-
-
-
-
-
-
-
-def get_ticket_categories_for_customer_status(
-        db:Session,
-        customer_status: str,
-) -> dict[str, int]:
-    """
-    Returns support ticker categories for customer in a given
-    lifecycle status
+    Return support-ticket counts grouped by category for one
+    simulation run.
 
     Example:
-        customer_status = 'trial'
-    
-    might return :
-        {
-            "integration": 8,
-            "login": 2,
-        }
 
-    This will allow us to investigate which problems are especially
-    common among trial, paid, or churned companies
+    {
+        "billing": 2,
+        "integration": 8,
+        "login": 2,
+    }
     """
 
     statement = (
@@ -157,9 +68,12 @@ def get_ticket_categories_for_customer_status(
             SupportTicket.customer_id == Customer.id,
         )
         .where(
-            Customer.status == customer_status
+            Customer.simulation_run_id == run_id
         )
         .group_by(
+            SupportTicket.category
+        )
+        .order_by(
             SupportTicket.category
         )
     )
@@ -172,38 +86,111 @@ def get_ticket_categories_for_customer_status(
     }
 
 
+def get_customers_with_ticket_category(
+    db: Session,
+    run_id: int,
+    category: str,
+) -> int:
+    """
+    Return the number of unique customer companies in one simulation
+    run that have at least one ticket in a particular category.
+    """
+
+    statement = (
+        select(
+            func.count(
+                func.distinct(
+                    SupportTicket.customer_id
+                )
+            )
+        )
+        .join(
+            Customer,
+            SupportTicket.customer_id == Customer.id,
+        )
+        .where(
+            Customer.simulation_run_id == run_id,
+            SupportTicket.category == category,
+        )
+    )
+
+    count = db.scalar(statement)
+
+    return count or 0
 
 
+def get_ticket_categories_for_customer_status(
+    db: Session,
+    run_id: int,
+    customer_status: str,
+) -> dict[str, int]:
+    """
+    Return ticket counts grouped by category for customers with a
+    particular status inside one simulation run.
 
+    Example statuses:
+    - trial
+    - paid
+    - churned
+    """
 
+    statement = (
+        select(
+            SupportTicket.category,
+            func.count(SupportTicket.id),
+        )
+        .join(
+            Customer,
+            SupportTicket.customer_id == Customer.id,
+        )
+        .where(
+            Customer.simulation_run_id == run_id,
+            Customer.status == customer_status,
+        )
+        .group_by(
+            SupportTicket.category
+        )
+        .order_by(
+            SupportTicket.category
+        )
+    )
 
+    rows = db.execute(statement).all()
 
-
+    return {
+        category: count
+        for category, count in rows
+    }
 
 
 def get_support_summary(
-        db:Session,
+    db: Session,
+    run_id: int,
 ) -> dict:
     """
-    Retuerns a high-level summary of customer support problems
-
-    Combine overall ticket counts with ticket category for trial
-    and paid customer companies
+    Return the complete observable support summary for one simulation
+    run.
     """
 
     return {
-        "total_tickets": get_support_ticket_count(db),
-        "all_categories": get_ticket_count_by_category(db),
-        "trial_customer_categories": (
+        "total_tickets": get_support_ticket_count(
+            db,
+            run_id,
+        ),
+        "all_categories": get_ticket_count_by_category(
+            db,
+            run_id,
+        ),
+        "trial_customer_categories":
             get_ticket_categories_for_customer_status(
                 db,
+                run_id,
                 "trial",
-            )
-        ),
-        "paid_customer_categories": (
+            ),
+        "paid_customer_categories":
             get_ticket_categories_for_customer_status(
                 db,
+                run_id,
                 "paid",
-            )
-        ),
+            ),
     }

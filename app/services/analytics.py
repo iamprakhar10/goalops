@@ -30,14 +30,21 @@ from app.database.models import (
 
 def get_customer_count(
         db: Session,
+        run_id: int,
 ) -> int:
     """
     Returns the total number of customer in the business
     """
 
-    statement = select(
-        func.count(Customer.id)
+    statement = (
+        select(
+            func.count(Customer.id)
+        )
+        .where(
+            Customer.simulation_run_id == run_id
+        )
     )
+
 
     count = db.scalar(statement)
 
@@ -60,6 +67,7 @@ def get_customer_count(
 
 def get_paid_customer_count(
         db: Session,
+        run_id: int,
 ) -> int:
     """
     Returns the number of customer companies currently marked as paid
@@ -69,7 +77,8 @@ def get_paid_customer_count(
             func.count(Customer.id)
         )
         .where(
-            Customer.status == "paid"
+            Customer.status == "paid",
+            Customer.simulation_run_id == run_id,
         )
     )
 
@@ -91,6 +100,7 @@ def get_paid_customer_count(
 
 def get_customers_with_lifecycle_event(
         db: Session,
+        run_id: int,
         event_name: str,
 ) -> int:
     """
@@ -116,11 +126,15 @@ def get_customers_with_lifecycle_event(
                 func.distinct(CustomerEvent.customer_id)
             )
         )
+        .join(
+            Customer,
+            CustomerEvent.customer_id == Customer.id,
+        )
         .where(
-            CustomerEvent.event_name == event_name
+            Customer.simulation_run_id == run_id,
+            CustomerEvent.event_name == event_name,
         )
     )
-
     count = db.scalar(statement)
 
     return count or 0
@@ -141,6 +155,7 @@ def get_customers_with_lifecycle_event(
 
 def get_user_event_count(
         db: Session,
+        run_id: int,
         event_name: str,
 ) -> int:
     """
@@ -158,8 +173,17 @@ def get_user_event_count(
         select(
             func.count(UserEvent.id)
         )
+        .join(
+            User,
+            UserEvent.user_id == User.id,
+        )
+        .join(
+            Customer,
+            User.customer_id == Customer.id,
+        )
         .where(
-            UserEvent.event_name == event_name
+            Customer.simulation_run_id == run_id,
+            UserEvent.event_name == event_name,
         )
     )
 
@@ -179,7 +203,8 @@ def get_user_event_count(
 
 
 def get_customers_with_user_event(
-        db:Session,
+        db: Session,
+        run_id: int,
         event_name: str,
 ) -> int:
     """
@@ -209,8 +234,13 @@ def get_customers_with_user_event(
             UserEvent,
             UserEvent.user_id == User.id,
         )
+        .join(
+            Customer,
+            User.customer_id == Customer.id,
+        )
         .where(
-            UserEvent.event_name == event_name
+            Customer.simulation_run_id == run_id,
+            UserEvent.event_name == event_name,
         )
     )
 
@@ -229,7 +259,8 @@ def get_customers_with_user_event(
 
 
 def get_onboarding_funnel(
-        db:Session
+        db:Session,
+        run_id: int,
 ) -> dict[str, int]:
     """
     Return the company-level onboarding and conversion funnel.
@@ -250,21 +281,25 @@ def get_onboarding_funnel(
 
     started_trial = get_customers_with_lifecycle_event(
         db,
+        run_id,
         "started_trial",
     )
 
     started_onboarding = get_customers_with_lifecycle_event(
         db,
+        run_id,
         "started_onboarding",
     )
 
     completed_onboarding = get_customers_with_lifecycle_event(
         db,
+        run_id,
         "completed_onboarding",
     )
 
     converted_to_paid = get_customers_with_lifecycle_event(
         db,
+        run_id,
         "converted_to_paid",
     )
 
@@ -287,9 +322,10 @@ def get_onboarding_funnel(
 
 
 
-
 def get_product_usage_summary(
         db:Session,
+        run_id: int,
+
 ) -> dict[str, dict[str, int]]:
     """
     Returns a small summary of employee-level product usage
@@ -318,10 +354,12 @@ def get_product_usage_summary(
         summary[event_name] = {
             "total_events": get_user_event_count(
                 db,
+                run_id,
                 event_name,
             ),
             "customer_companies": get_customers_with_user_event(
                 db,
+                run_id,
                 event_name,
             ),
         }
@@ -346,6 +384,7 @@ def get_product_usage_summary(
 
 def get_conversion_rate(
     db: Session,
+    run_id: int,
 ) -> float:
     """
     Return the percentage of customer companies currently marked as paid.
@@ -358,12 +397,18 @@ def get_conversion_rate(
     Returns 0.0 when there are no customer companies.
     """
 
-    total_customers = get_customer_count(db)
+    total_customers = get_customer_count(
+        db,
+        run_id,
+    )
 
     if total_customers == 0:
         return 0.0
 
-    paid_customers = get_paid_customer_count(db)
+    paid_customers = get_paid_customer_count(
+        db,
+        run_id,
+    )
 
     conversion_rate = (
         paid_customers / total_customers

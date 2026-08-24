@@ -191,6 +191,7 @@ def calculate_conversion_probability(
 
 def get_eligible_trial_customers(
         db: Session,
+        run_id: int,
         intervention: InterventionDefinition,
 ) -> list[Customer]:
     """
@@ -205,7 +206,8 @@ def get_eligible_trial_customers(
     statement = (
         select(Customer)
         .where(
-            Customer.status == "trial"
+            Customer.status == "trial",
+            Customer.simulation_run_id == run_id,
         )
         .order_by(
             Customer.id
@@ -377,6 +379,7 @@ def add_customer_event(
 
 def get_integration_problem_customers(
         db: Session,
+        run_id: int,
 ) -> list[Customer]:
     """
     Returns trial customer companies with an integration support
@@ -395,6 +398,7 @@ def get_integration_problem_customers(
         .where(
             Customer.status == "trial",
             SupportTicket.category == "integration",
+            Customer.simulation_run_id == run_id,
         )
         .order_by(
             Customer.id
@@ -422,6 +426,7 @@ def get_integration_problem_customers(
 
 def evaluate_intervention(
         db: Session,
+        run_id: int,
         state: SimulationState,
         active_intervention: ActiveIntervention,
 ) -> None:
@@ -440,6 +445,7 @@ def evaluate_intervention(
 
     customers = get_eligible_trial_customers(
         db=db,
+        run_id=run_id,
         intervention=intervention,
     )
 
@@ -536,6 +542,7 @@ def evaluate_intervention(
 
 def advance_days(
         db: Session,
+        run_id: int,
         state: SimulationState,
         days: int,
 ) -> None:
@@ -577,6 +584,7 @@ def advance_days(
         ):
             evaluate_intervention(
                 db,
+                run_id,
                 state,
                 active_intervention,
             )

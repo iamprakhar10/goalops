@@ -59,6 +59,7 @@ class GoalEvaluation:
 
 def get_goal_metric_value(
         db: Session,
+        run_id: int,
         metric_name: str,
 ) -> float:
     """
@@ -71,7 +72,10 @@ def get_goal_metric_value(
     """
 
     if metric_name == "trial_to_paid_conversion":
-        return get_conversion_rate(db)
+        return get_conversion_rate(
+            db,
+            run_id,
+            )
 
     raise ValueError(
         f"Unsupported goal metric: {metric_name}"
@@ -90,6 +94,7 @@ def get_goal_metric_value(
 
 def evaluate_goal(
         db:Session,
+        run_id: int,
         state: SimulationState,
         goal: BusinessGoal,
 ) -> GoalEvaluation:
@@ -105,6 +110,7 @@ def evaluate_goal(
 
     current_value = get_goal_metric_value(
         db,
+        run_id,
         goal.metric_name,
     )
 

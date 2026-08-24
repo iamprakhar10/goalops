@@ -34,6 +34,7 @@ from app.simulation.run_store import (
     update_simulation_run_status,
 )
 from typing import Any
+from app.scripts.seed_demo_data import seed_business_world
 
 # 
 #  CURRENT VERSION
@@ -123,10 +124,10 @@ def get_business_snapshot(
         return {
             "current_day": state.current_day,
             "total_spend": state.total_spend,
-            "conversion_rate": get_conversion_rate(db),
-            "onboarding_funnel": get_onboarding_funnel(db),
-            "product_usage": get_product_usage_summary(db),
-            "support": get_support_summary(db),
+            "conversion_rate": get_conversion_rate(db, run_id),
+            "onboarding_funnel": get_onboarding_funnel(db, run_id),
+            "product_usage": get_product_usage_summary(db, run_id),
+            "support": get_support_summary(db, run_id),
         }
 
     finally:
@@ -235,6 +236,7 @@ def advance_simulation(
 
             advance_days(
                 db,
+                run_id,
                 state,
                 days,
             )
@@ -320,6 +322,7 @@ def evaluate_business_goal(
 
         evaluation = evaluate_goal(
             db,
+            run_id,
             state,
             business_goal,
         )
@@ -367,6 +370,12 @@ def create_business_run(
                 db,
                 random_seed=random_seed,
             )
+
+            seed_business_world(
+                db=db,
+                simulation_run_id=simulation_run.id,
+            )
+
             db.commit()
 
             return {
