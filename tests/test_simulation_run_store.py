@@ -8,10 +8,11 @@ and reconstructed as SimulationState objects.
 from app.simulation.run_store import (
     create_simulation_run,
     load_simulation_state,
-    save_simulation_state
+    save_simulation_state,
+    get_simulation_run,
 )
 from app.simulation.interventions import ActiveIntervention
-
+from app.mcp.tools import update_simulation_run_status
 
 def test_create_simulation_run(
     db_session,
@@ -144,3 +145,39 @@ def test_active_intervention_survives_reload(
 
     assert intervention.started_day == 0
     assert intervention.evaluation_day == 7
+
+
+
+
+
+
+
+
+
+
+
+def test_update_simulation_run_status(
+    db_session,
+) -> None:
+    """
+    A simulation run should persist its final lifecycle status.
+    """
+
+    run = create_simulation_run(
+        db_session,
+        random_seed=42,
+    )
+
+    update_simulation_run_status(
+        db_session,
+        run.id,
+        "achieved",
+    )
+
+    updated_run = get_simulation_run(
+        db_session,
+        run.id,
+    )
+
+    assert updated_run is not None
+    assert updated_run.status == "achieved"

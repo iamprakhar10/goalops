@@ -31,6 +31,7 @@ from app.simulation.run_store import (
     create_simulation_run,
     load_simulation_state,
     save_simulation_state,
+    update_simulation_run_status,
 )
 from typing import Any
 
@@ -374,6 +375,54 @@ def create_business_run(
                 "total_spend": simulation_run.total_spend,
                 "random_seed": simulation_run.random_seed,
                 "status": simulation_run.status,
+            }
+
+        except Exception:
+            db.rollback()
+            raise
+
+
+
+
+
+
+
+
+
+
+
+
+def complete_business_run(
+        run_id: int,
+        status: str,
+) -> dict[str, Any]:
+    """
+    Persist the final status of one simulation run
+
+    This will not be an MCP tool, LLM should not choose
+    mark_run_achieved()
+    """
+
+    if status not in {
+        'achieved',
+        'failed',
+    }:
+        raise ValueError(
+            f"Unsupported final run status: {status}"
+        )
+
+    with SessionLocal() as db:
+        try:
+            update_simulation_run_status(
+                db=db,
+                run_id=run_id,
+                status=status,
+            )
+
+            db.commit()
+            return {
+                "run_id": run_id,
+                "status": status,
             }
 
         except Exception:

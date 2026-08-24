@@ -22,6 +22,7 @@ from app.operator.llm import LLMClient
 from app.operator.tool_adapter import (
     mcp_tools_to_groq,
 )
+from app.mcp.tools import complete_business_run
 
 MAX_TOOL_ROUNDS = 7
 
@@ -304,6 +305,11 @@ async def run_tool_operator(
                         "achieved",
                         "failed",
                     }:
+                        complete_business_run(
+                            run_id=run_id,
+                            status=result['status']
+                        )
+
 
                         print(
                             "\nOperator stopped:",

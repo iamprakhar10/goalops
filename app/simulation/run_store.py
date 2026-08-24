@@ -237,3 +237,46 @@ def save_simulation_state(
         db.add(row)
 
     db.flush()
+
+
+
+
+
+
+
+
+
+
+
+
+
+def update_simulation_run_status(
+        db: Session,
+        run_id: int,
+        status: str,
+) -> None:
+    """
+    Update the lifecycle status of one persisitent run
+
+    Expected statuses include:
+
+    - active
+    - achieved
+    - failed
+
+    This function flushes but does not commit so the caller controls
+    the transaction boundary
+    """
+
+    simulation_run = get_simulation_run(
+        db=db,
+        run_id=run_id,
+    )
+    if simulation_run is None:
+        raise ValueError(
+            f"Simulation run {run_id} does not exist"
+        )
+
+    simulation_run.status = status
+
+    db.flush()
