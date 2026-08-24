@@ -82,6 +82,15 @@ class Customer(Base):
         uselist=False,
     )
 
+    simulation_run_id: Mapped[int|None] = mapped_column(
+        ForeignKey('simulation_runs.id'),
+        nullable=True,
+    )
+
+    simulation_run: Mapped[SimulationRun] = relationship(
+        back_populates='customers',
+    )
+
 
 
 
@@ -574,6 +583,11 @@ class SimulationRun(Base):
             back_populates="simulation_run",
             cascade="all, delete-orphan",
         )
+
+    customers: Mapped[list[Customer]] = relationship(
+        back_populates="simulation_run",
+        cascade="all, delete-orphan",
+    )
 
 
 
