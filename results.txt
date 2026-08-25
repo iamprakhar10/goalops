@@ -1,0 +1,464 @@
+============================================================
+BENCHMARK SEED 1
+============================================================
+
+Created simulation run: 293
+
+=== TOOL ROUND 1 ===
+[08/25/26 14:35:46] INFO     HTTP Request: POST                                    _client.py:1025
+                             https://api.groq.com/openai/v1/chat/completions                      
+                             "HTTP/1.1 200 OK"                                                    
+
+Tool: business_snapshot
+Arguments: {'run_id': 293}
+Result: {
+  "current_day": 0,
+  "total_spend": 0.0,
+  "conversion_rate": 30.0,
+  "onboarding_funnel": {
+    "started_trial": 20,
+    "started_onboarding": 14,
+    "completed_onboarding": 6,
+    "converted_to_paid": 6
+  },
+  "product_usage": {
+    "logged_in": {
+      "total_events": 26,
+      "customer_companies": 20
+    },
+    "connected_integration": {
+      "total_events": 14,
+      "customer_companies": 14
+    },
+    "created_workflow": {
+      "total_events": 6,
+      "customer_companies": 6
+    },
+    "ran_workflow": {
+      "total_events": 12,
+      "customer_companies": 6
+    }
+  },
+  "support": {
+    "total_tickets": 12,
+    "all_categories": {
+      "billing": 2,
+      "integration": 8,
+      "login": 2
+    },
+    "trial_customer_categories": {
+      "integration": 8,
+      "login": 2
+    },
+    "paid_customer_categories": {
+      "billing": 2
+    }
+  }
+}
+
+=== TOOL ROUND 2 ===
+[08/25/26 14:35:47] INFO     HTTP Request: POST                                    _client.py:1025
+                             https://api.groq.com/openai/v1/chat/completions                      
+                             "HTTP/1.1 200 OK"                                                    
+
+Tool: available_interventions
+Arguments: {}
+Result: {
+  "result": [
+    {
+      "name": "guided_integration_help",
+      "description": "Provide guided setup assistance to trial companies experiencing integration problems.",
+      "cost": 1200.0,
+      "duration_days": 7
+    },
+    {
+      "name": "onboarding_email",
+      "description": "Send additional onboarding guidance to trial companies that have started onboarding.",
+      "cost": 300.0,
+      "duration_days": 7
+    },
+    {
+      "name": "workflow_template",
+      "description": "Provide ready-made workflow templates to help trial companies reach product activation faster.",
+      "cost": 800.0,
+      "duration_days": 7
+    }
+  ]
+}
+
+=== TOOL ROUND 3 ===
+[08/25/26 14:35:48] INFO     HTTP Request: POST                                    _client.py:1025
+                             https://api.groq.com/openai/v1/chat/completions                      
+                             "HTTP/1.1 200 OK"                                                    
+
+Tool: run_intervention
+Arguments: {'intervention_name': 'guided_integration_help', 'run_id': 293}
+Result: {
+  "run_id": 293,
+  "name": "guided_integration_help",
+  "started_day": 0,
+  "evaluation_day": 7,
+  "total_spend": 1200.0
+}
+
+=== TOOL ROUND 4 ===
+                    INFO     HTTP Request: POST                                    _client.py:1025
+                             https://api.groq.com/openai/v1/chat/completions                      
+                             "HTTP/1.1 200 OK"                                                    
+
+Tool: advance_time
+Arguments: {'days': 7, 'run_id': 293}
+Result: {
+  "run_id": 293,
+  "current_day": 7,
+  "active_interventions": []
+}
+
+=== TOOL ROUND 5 ===
+[08/25/26 14:35:49] INFO     HTTP Request: POST                                    _client.py:1025
+                             https://api.groq.com/openai/v1/chat/completions                      
+                             "HTTP/1.1 200 OK"                                                    
+
+Tool: business_snapshot
+Arguments: {'run_id': 293}
+Result: {
+  "current_day": 7,
+  "total_spend": 1200.0,
+  "conversion_rate": 50.0,
+  "onboarding_funnel": {
+    "started_trial": 20,
+    "started_onboarding": 14,
+    "completed_onboarding": 11,
+    "converted_to_paid": 10
+  },
+  "product_usage": {
+    "logged_in": {
+      "total_events": 26,
+      "customer_companies": 20
+    },
+    "connected_integration": {
+      "total_events": 14,
+      "customer_companies": 14
+    },
+    "created_workflow": {
+      "total_events": 6,
+      "customer_companies": 6
+    },
+    "ran_workflow": {
+      "total_events": 12,
+      "customer_companies": 6
+    }
+  },
+  "support": {
+    "total_tickets": 12,
+    "all_categories": {
+      "billing": 2,
+      "integration": 8,
+      "login": 2
+    },
+    "trial_customer_categories": {
+      "integration": 4,
+      "login": 2
+    },
+    "paid_customer_categories": {
+      "billing": 2,
+      "integration": 4
+    }
+  }
+}
+
+=== TOOL ROUND 6 ===
+                    INFO     HTTP Request: POST                                    _client.py:1025
+                             https://api.groq.com/openai/v1/chat/completions                      
+                             "HTTP/1.1 200 OK"                                                    
+
+Tool: goal_status
+Arguments: {'run_id': 293}
+Result: {
+  "run_id": 293,
+  "metric_name": "trial_to_paid_conversion",
+  "target_value": 40.0,
+  "current_value": 50.0,
+  "status": "achieved",
+  "max_budget": 2000.0,
+  "budget_remaining": 800.0,
+  "deadline_day": 30,
+  "days_remaining": 23
+}
+
+Operator stopped: achieved
+
+============================================================
+BENCHMARK SEED 2
+============================================================
+
+Created simulation run: 294
+
+=== TOOL ROUND 1 ===
+[08/25/26 14:35:52] INFO     HTTP Request: POST                                    _client.py:1025
+                             https://api.groq.com/openai/v1/chat/completions                      
+                             "HTTP/1.1 200 OK"                                                    
+
+Tool: business_snapshot
+Arguments: {'run_id': 294}
+Result: {
+  "current_day": 0,
+  "total_spend": 0.0,
+  "conversion_rate": 30.0,
+  "onboarding_funnel": {
+    "started_trial": 20,
+    "started_onboarding": 14,
+    "completed_onboarding": 6,
+    "converted_to_paid": 6
+  },
+  "product_usage": {
+    "logged_in": {
+      "total_events": 26,
+      "customer_companies": 20
+    },
+    "connected_integration": {
+      "total_events": 14,
+      "customer_companies": 14
+    },
+    "created_workflow": {
+      "total_events": 6,
+      "customer_companies": 6
+    },
+    "ran_workflow": {
+      "total_events": 12,
+      "customer_companies": 6
+    }
+  },
+  "support": {
+    "total_tickets": 12,
+    "all_categories": {
+      "billing": 2,
+      "integration": 8,
+      "login": 2
+    },
+    "trial_customer_categories": {
+      "integration": 8,
+      "login": 2
+    },
+    "paid_customer_categories": {
+      "billing": 2
+    }
+  }
+}
+
+=== TOOL ROUND 2 ===
+                    INFO     HTTP Request: POST                                    _client.py:1025
+                             https://api.groq.com/openai/v1/chat/completions                      
+                             "HTTP/1.1 200 OK"                                                    
+
+Tool: available_interventions
+Arguments: {}
+Result: {
+  "result": [
+    {
+      "name": "guided_integration_help",
+      "description": "Provide guided setup assistance to trial companies experiencing integration problems.",
+      "cost": 1200.0,
+      "duration_days": 7
+    },
+    {
+      "name": "onboarding_email",
+      "description": "Send additional onboarding guidance to trial companies that have started onboarding.",
+      "cost": 300.0,
+      "duration_days": 7
+    },
+    {
+      "name": "workflow_template",
+      "description": "Provide ready-made workflow templates to help trial companies reach product activation faster.",
+      "cost": 800.0,
+      "duration_days": 7
+    }
+  ]
+}
+
+=== TOOL ROUND 3 ===
+[08/25/26 14:35:53] INFO     HTTP Request: POST                                    _client.py:1025
+                             https://api.groq.com/openai/v1/chat/completions                      
+                             "HTTP/1.1 200 OK"                                                    
+
+Tool: run_intervention
+Arguments: {'intervention_name': 'guided_integration_help', 'run_id': 294}
+Result: {
+  "run_id": 294,
+  "name": "guided_integration_help",
+  "started_day": 0,
+  "evaluation_day": 7,
+  "total_spend": 1200.0
+}
+
+=== TOOL ROUND 4 ===
+                    INFO     HTTP Request: POST                                    _client.py:1025
+                             https://api.groq.com/openai/v1/chat/completions                      
+                             "HTTP/1.1 200 OK"                                                    
+
+Tool: run_intervention
+Arguments: {'intervention_name': 'onboarding_email', 'run_id': 294}
+Result: {
+  "run_id": 294,
+  "name": "onboarding_email",
+  "started_day": 0,
+  "evaluation_day": 7,
+  "total_spend": 1500.0
+}
+
+=== TOOL ROUND 5 ===
+[08/25/26 14:35:54] INFO     HTTP Request: POST                                    _client.py:1025
+                             https://api.groq.com/openai/v1/chat/completions                      
+                             "HTTP/1.1 429 Too Many Requests"                                     
+                    INFO     Retrying request to /openai/v1/chat/completions  _base_client.py:1095
+                             in 8.000000 seconds                                                  
+[08/25/26 14:36:02] INFO     HTTP Request: POST                                    _client.py:1025
+                             https://api.groq.com/openai/v1/chat/completions                      
+                             "HTTP/1.1 200 OK"                                                    
+
+Tool: advance_time
+Arguments: {'days': 7, 'run_id': 294}
+Result: {
+  "run_id": 294,
+  "current_day": 7,
+  "active_interventions": []
+}
+
+=== TOOL ROUND 6 ===
+                    INFO     HTTP Request: POST                                    _client.py:1025
+                             https://api.groq.com/openai/v1/chat/completions                      
+                             "HTTP/1.1 429 Too Many Requests"                                     
+                    INFO     Retrying request to /openai/v1/chat/completions  _base_client.py:1095
+                             in 9.000000 seconds                                                  
+[08/25/26 14:36:12] INFO     HTTP Request: POST                                    _client.py:1025
+                             https://api.groq.com/openai/v1/chat/completions                      
+                             "HTTP/1.1 200 OK"                                                    
+
+Tool: business_snapshot
+Arguments: {'run_id': 294}
+Result: {
+  "current_day": 7,
+  "total_spend": 1500.0,
+  "conversion_rate": 45.0,
+  "onboarding_funnel": {
+    "started_trial": 20,
+    "started_onboarding": 14,
+    "completed_onboarding": 12,
+    "converted_to_paid": 9
+  },
+  "product_usage": {
+    "logged_in": {
+      "total_events": 26,
+      "customer_companies": 20
+    },
+    "connected_integration": {
+      "total_events": 14,
+      "customer_companies": 14
+    },
+    "created_workflow": {
+      "total_events": 6,
+      "customer_companies": 6
+    },
+    "ran_workflow": {
+      "total_events": 12,
+      "customer_companies": 6
+    }
+  },
+  "support": {
+    "total_tickets": 12,
+    "all_categories": {
+      "billing": 2,
+      "integration": 8,
+      "login": 2
+    },
+    "trial_customer_categories": {
+      "integration": 5,
+      "login": 2
+    },
+    "paid_customer_categories": {
+      "billing": 2,
+      "integration": 3
+    }
+  }
+}
+
+=== TOOL ROUND 7 ===
+                    INFO     HTTP Request: POST                                    _client.py:1025
+                             https://api.groq.com/openai/v1/chat/completions                      
+                             "HTTP/1.1 429 Too Many Requests"                                     
+                    INFO     Retrying request to /openai/v1/chat/completions  _base_client.py:1095
+                             in 11.000000 seconds                                                 
+[08/25/26 14:36:24] INFO     HTTP Request: POST                                    _client.py:1025
+                             https://api.groq.com/openai/v1/chat/completions                      
+                             "HTTP/1.1 200 OK"                                                    
+
+Tool: goal_status
+Arguments: {'run_id': 294}
+Result: {
+  "run_id": 294,
+  "metric_name": "trial_to_paid_conversion",
+  "target_value": 40.0,
+  "current_value": 45.0,
+  "status": "achieved",
+  "max_budget": 2000.0,
+  "budget_remaining": 500.0,
+  "deadline_day": 30,
+  "days_remaining": 23
+}
+
+Operator stopped: achieved
+
+============================================================
+GOALOPS BENCHMARK RESULTS
+============================================================
+{
+  "total_runs": 2,
+  "successful_runs": 2,
+  "failed_runs": 0,
+  "success_rate": 100.0,
+  "average_final_metric": 47.5,
+  "average_spend": 1350.0,
+  "average_days_used": 7.0,
+  "average_tool_calls": 6.5,
+  "inspected_business_rate": 100.0,
+  "inspected_before_action_rate": 100.0,
+  "intervention_counts": {
+    "guided_integration_help": 2,
+    "onboarding_email": 1
+  },
+  "runs": [
+    {
+      "random_seed": 1,
+      "evaluation": {
+        "goal_status": "achieved",
+        "final_metric": 50.0,
+        "target_value": 40.0,
+        "total_spend": 1200.0,
+        "days_used": 7,
+        "decisions_made": 6,
+        "interventions_launched": [
+          "guided_integration_help"
+        ],
+        "inspected_business": true,
+        "inspected_before_first_intervention": true
+      }
+    },
+    {
+      "random_seed": 2,
+      "evaluation": {
+        "goal_status": "achieved",
+        "final_metric": 45.0,
+        "target_value": 40.0,
+        "total_spend": 1500.0,
+        "days_used": 7,
+        "decisions_made": 7,
+        "interventions_launched": [
+          "guided_integration_help",
+          "onboarding_email"
+        ],
+        "inspected_business": true,
+        "inspected_before_first_intervention": true
+      }
+    }
+  ]
+}
