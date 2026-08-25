@@ -24,7 +24,7 @@ from app.operator.tool_adapter import (
 )
 from app.mcp.tools import complete_business_run
 
-MAX_TOOL_ROUNDS = 7
+
 
 
 
@@ -70,8 +70,8 @@ class ToolOperatorRunState:
 
 
 async def run_tool_operator(
+        max_tool_rounds: int,
         random_seed: int=42,
-        max_tool_rounds: int = MAX_TOOL_ROUNDS,
 ) -> ToolOperatorRunState:
     """
     Run one MCP-discovered GoalOps agent session.
@@ -157,7 +157,7 @@ async def run_tool_operator(
         # -----------------------------------------------------
         for round_number in range(
             1,
-            MAX_TOOL_ROUNDS+1,
+            max_tool_rounds+1,
         ):
 
             run_state.rounds = round_number
@@ -215,7 +215,28 @@ async def run_tool_operator(
                     final_goal_status
                 )
 
-                return run_state
+                if final_goal_status["status"] in {
+                    "achieved",
+                    "failed",
+                }:
+                    complete_business_run(
+                        run_id=run_id,
+                        status=final_goal_status["status"],
+                    )
+
+                    return run_state
+
+                messages.append(
+                    {
+                        "role": "user",
+                        "content": (
+                            "The goal is still in progress. "
+                            "Continue operating using the available tools."
+                        ),
+                    }
+                )
+
+                continue
 
             # -------------------------------------------------
             # EXECUTE EVERY TOOL CALL THROUGH MCP

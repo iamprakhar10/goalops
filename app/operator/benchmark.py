@@ -15,7 +15,7 @@ from app.operator.evaluation import (
     evaluate_tool_operator_run,
 )
 from app.operator.tool_runner import run_tool_operator
-
+import asyncio
 
 @dataclass
 class BenchmarkRunResult:
@@ -62,6 +62,7 @@ class BenchmarkResult:
 async def run_benchmark(
         seeds: list[int],
         max_tool_rounds: int=12,
+        delay_between_runs: float=45.0,
 ) -> BenchmarkResult:
     """
     Run the autonomous operator independently across multiple seeds
@@ -78,7 +79,7 @@ async def run_benchmark(
 
     run_results: list[BenchmarkRunResult] = []
 
-    for seed in seeds:
+    for index, seed in enumerate(seeds):
         print()
         print("=" * 60)
         print(f"BENCHMARK SEED {seed}")
@@ -99,6 +100,11 @@ async def run_benchmark(
                 evaluation=evaluation,
             )
         )
+        # Avoid hammering the LLM provider between independent runs.
+        if index < len(seeds) - 1:
+            await asyncio.sleep(
+                delay_between_runs
+            )
 
     return aggregate_benchmark_results(
         run_results

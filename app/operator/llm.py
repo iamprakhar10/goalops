@@ -16,7 +16,8 @@ import os
 from typing import Any
 from dotenv import load_dotenv
 from groq import Groq
-
+from groq import  BadRequestError
+ 
 from app.operator.prompts import OPERATOR_SYSTEM_PROMPT
 from app.operator.schemas import OperatorDecision
 
@@ -145,13 +146,39 @@ class LLMClient:
         - tool name
         - tool arguments
         - tool-call ID
-        """
 
-        return self.client.chat.completions.create(
-            model=self.model,
-            messages=messages,
-            tools=tools,
-            tool_choice='auto',
+        If Groq produces malformed tool-call output, we will retry a small
+        number of times before giving up
+        """
+        max_attempts=3
+
+        for attempt in range(max_attempts):
+            try: 
+
+                return self.client.chat.completions.create(
+                    model=self.model,
+                    messages=messages,
+                    tools=tools,
+                    tool_choice='auto',
+                    temperature=.2,
+                )
+
+            except BadRequestError as exc:
+                if (
+                    "output_parse_failed"
+                    not in str(exc)
+                ):
+                    raise
+
+                if attempt == max_attempts-1:
+                    raise
+
+                print(
+                    "=====>~GrOq produced an invaild tool call."
+                    "Retrying..."
+                )
+        raise RuntimeError(
+            "Groq tool-call generation failed unexpectedly."
         )
         
 
