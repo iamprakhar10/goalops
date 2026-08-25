@@ -280,3 +280,52 @@ def update_simulation_run_status(
     simulation_run.status = status
 
     db.flush()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+def get_simulation_run_intervention_history(
+        db: Session,
+        run_id: int,
+) -> list[dict[str, int|str]]:
+    """
+    Returns all interventions launched during one simulation run
+
+    Both active and completed interventions are included so callers can 
+    reconstruct the run's operational history
+    """
+
+    statement = (
+        select(SimulationRunIntervention)
+        .where(
+            SimulationRunIntervention.simulation_run_id == run_id
+        )
+        .order_by(
+            SimulationRunIntervention.started_day,
+            SimulationRunIntervention.id,
+        )
+    )
+
+    interventions = list(
+        db.scalars(statement).all()
+    )
+
+    return [
+        {
+            "name": intervention.intervention_name,
+            "started_day": intervention.started_day,
+            "evaluation_day": intervention.evaluation_day,
+            "status": intervention.status,
+        }
+        for intervention in interventions
+    ]

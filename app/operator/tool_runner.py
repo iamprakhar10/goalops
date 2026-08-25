@@ -70,8 +70,10 @@ class ToolOperatorRunState:
 
 
 async def run_tool_operator(
+        *,
         max_tool_rounds: int,
-        random_seed: int=42,
+        random_seed: int|None = None,
+        run_id: int|None = None,
 ) -> ToolOperatorRunState:
     """
     Run one MCP-discovered GoalOps agent session.
@@ -88,23 +90,58 @@ async def run_tool_operator(
 
     llm = LLMClient()
     run_state = ToolOperatorRunState()
+    resumed = run_id is not None
+
+    
+
+    if run_id is None and random_seed is None:
+        random_seed=42
+
+    if run_id is not None and random_seed is not None:
+        raise ValueError(
+            "Provide either run_id to resume an existing run "
+            "or random_seed to create a new run"
+        )
 
     async with GoalOpsMCPClient() as mcp_client:
         # -----------------------------------------------------
-        # CREATE A PERSISTENT SIMULATION RUN
+        # CREATE A PERSISTENT SIMULATION RUN IF "NEEDED"
         # -----------------------------------------------------
+        if run_id is None:
+                
+            run_result = await mcp_client.call_tool(
+                'create_run',
+                {
+                    'random_seed': random_seed,
+                },
+            )
 
-        run_result = await mcp_client.call_tool(
-            'create_run',
-            {
-                'random_seed': random_seed,
-            },
-        )
+            run_id = run_result['run_id']
+            print(
+                f"\nCreated simulation run: {run_id}"
+            )
 
-        run_id = run_result['run_id']
-        print(
-            f"\nCreated simulation run: {run_id}"
-        )
+        else:
+            initial_status = await mcp_client.call_tool(
+                "goal_status",
+                {
+                    "run_id": run_id,
+                },
+            )
+
+            if initial_status['status'] in {
+                'achieved',
+                'failed',
+            }:
+                raise ValueError(
+                    f"Simulation run {run_id} is already "
+                    f"{initial_status['status']}."
+                )
+
+            print(
+                f"\nResuming simulation run: {run_id}"
+            )
+            run_state.run_id = run_id
 
         # -----------------------------------------------------
         # DISCOVER TOOLS FROM MCP
@@ -146,8 +183,17 @@ async def run_tool_operator(
             {
                 "role": "user",
                 "content": (
-                    f"Begin operating simulation run {run_id}. "
-                    "Work autonomously toward the business goal."
+                    (
+                        f"Resume operating simulation run {run_id}. "
+                        "Inspect the current business state before taking "
+                        "further action."
+                    )
+                    if resumed
+                    else
+                    (
+                        f"Begin operating simulation run {run_id}. "
+                        "Work autonomously toward the business goal."
+                    )
                 ),
             },
         ]
@@ -359,5 +405,14 @@ async def run_tool_operator(
         run_state.final_goal_status = (
             final_goal_status
         )
+
+        if final_goal_status["status"] in {
+            "achieved",
+            "failed",
+        }:
+            complete_business_run(
+                run_id=run_id,
+                status=final_goal_status["status"],
+            )
 
         return run_state

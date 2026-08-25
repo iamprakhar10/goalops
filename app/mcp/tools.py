@@ -32,6 +32,7 @@ from app.simulation.run_store import (
     load_simulation_state,
     save_simulation_state,
     update_simulation_run_status,
+    get_simulation_run_intervention_history,
 )
 from typing import Any
 from app.scripts.seed_demo_data import seed_business_world
@@ -119,6 +120,12 @@ def get_business_snapshot(
         db,
         run_id,
     )
+    intervention_history = (
+        get_simulation_run_intervention_history(
+            db=db,
+            run_id=run_id,
+        )
+    )
 
     try:
         return {
@@ -128,6 +135,7 @@ def get_business_snapshot(
             "onboarding_funnel": get_onboarding_funnel(db, run_id),
             "product_usage": get_product_usage_summary(db, run_id),
             "support": get_support_summary(db, run_id),
+            "intervention_history": intervention_history,
         }
 
     finally:

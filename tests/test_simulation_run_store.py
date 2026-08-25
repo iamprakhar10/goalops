@@ -10,9 +10,13 @@ from app.simulation.run_store import (
     load_simulation_state,
     save_simulation_state,
     get_simulation_run,
+    get_simulation_run_intervention_history,
 )
 from app.simulation.interventions import ActiveIntervention
 from app.mcp.tools import update_simulation_run_status
+from app.simulation.state import SimulationState
+from app.simulation.engine import activate_intervention, advance_days
+
 
 def test_create_simulation_run(
     db_session,
@@ -181,3 +185,69 @@ def test_update_simulation_run_status(
 
     assert updated_run is not None
     assert updated_run.status == "achieved"
+
+
+
+
+
+
+
+
+
+
+
+
+
+def test_intervention_history_contains_completed_interventions(
+    db_session,
+) -> None:
+    """
+    Completed interventions should remain available as run history.
+    """
+
+    simulation_run = create_simulation_run(
+        db_session,
+        random_seed=42,
+    )
+
+    state = SimulationState(
+        random_seed=42,
+    )
+
+    activate_intervention(
+        state,
+        "onboarding_email",
+    )
+
+    save_simulation_state(
+        db_session,
+        simulation_run.id,
+        state,
+    )
+
+    advance_days(
+        db_session,
+        simulation_run.id,
+        state,
+        7,
+    )
+
+    save_simulation_state(
+        db_session,
+        simulation_run.id,
+        state,
+    )
+
+    history = get_simulation_run_intervention_history(
+        db_session,
+        simulation_run.id,
+    )
+
+    assert history == [
+        {
+            "name": "onboarding_email",
+            "started_day": 0,
+            "evaluation_day": 7,
+            "status": "completed",
+        }
+    ]
