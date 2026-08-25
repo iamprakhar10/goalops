@@ -100,28 +100,50 @@ async def run_benchmark(
             )
         )
 
+    return aggregate_benchmark_results(
+        run_results
+    )
+
+
+
+
+def aggregate_benchmark_results(
+    run_results: list[BenchmarkRunResult],
+) -> BenchmarkResult:
+    """
+    Aggregate completed benchmark run evaluations.
+
+    This function is deterministic and does not call the LLM,
+    simulator, MCP, or database.
+    """
+
+    if not run_results:
+        raise ValueError(
+            "Benchmark requires at least one completed run."
+        )
+
     total_runs = len(run_results)
 
     successful_runs = sum(
         1
         for result in run_results
-        if result.evaluation.goal_status == 'achieved'
+        if result.evaluation.goal_status == "achieved"
     )
 
     failed_runs = sum(
         1
         for result in run_results
-        if result.evaluation.goal_status == 'failed'
+        if result.evaluation.goal_status == "failed"
     )
 
     success_rate = (
-        successful_runs/total_runs
-    )*100
+        successful_runs / total_runs
+    ) * 100
 
     average_final_metric = sum(
         result.evaluation.final_metric
         for result in run_results
-    )/total_runs
+    ) / total_runs
 
     average_spend = sum(
         result.evaluation.total_spend
@@ -147,7 +169,10 @@ async def run_benchmark(
     inspected_before_action_count = sum(
         1
         for result in run_results
-        if result.evaluation.inspected_before_first_intervention
+        if (
+            result.evaluation
+            .inspected_before_first_intervention
+        )
     )
 
     inspected_business_rate = (
@@ -171,7 +196,7 @@ async def run_benchmark(
             ] = (
                 intervention_counts.get(
                     intervention_name,
-                    0
+                    0,
                 )
                 + 1
             )
