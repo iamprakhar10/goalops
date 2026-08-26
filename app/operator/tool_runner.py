@@ -24,8 +24,13 @@ from app.operator.tool_adapter import (
 )
 from app.mcp.tools import complete_business_run
 
+from app.database.db import SessionLocal
 
-
+from app.operator.session_store import (
+    complete_operator_session,
+    create_operator_session,
+    save_operator_tool_call,
+)
 
 
 
@@ -154,285 +159,366 @@ async def run_tool_operator(
         # Works for both new and resumed runs.
         run_state.run_id = run_id
 
-        # -----------------------------------------------------
-        # DISCOVER TOOLS FROM MCP
-        # -----------------------------------------------------
-
-        mcp_tools = await mcp_client.list_tools()
-
-        agent_tools = [
-            tool
-            for tool in mcp_tools.tools
-            if tool.name != "create_run"
-        ]
-
-        groq_tools = mcp_tools_to_groq(
-            agent_tools
+        db = SessionLocal()
+        operator_session = create_operator_session(
+            db=db,
+            simulation_run_id=run_id,
         )
+        db.commit()
 
-        # -----------------------------------------------------
-        # INITIAL LLM CONTEXT
-        # -----------------------------------------------------
+        operator_session_id = operator_session.id
+        try:
+            # -----------------------------------------------------
+            # DISCOVER TOOLS FROM MCP
+            # -----------------------------------------------------
 
-        messages: list[Any] = [
-            {
-                "role": "system",
-                "content": (
-                    "You are an autonomous business operator "
-                    "inside a simulated B2B SaaS company.\n\n"
+            mcp_tools = await mcp_client.list_tools()
 
-                    "Your objective is to increase trial-to-paid "
-                    "conversion to at least 40% within 30 simulated "
-                    "days while spending no more than 2000.\n\n"
+            agent_tools = [
+                tool
+                for tool in mcp_tools.tools
+                if tool.name != "create_run"
+            ]
 
-                    "Use the available tools to investigate the "
-                    "business, inspect interventions, take actions, "
-                    "advance simulated time, and check progress.\n\n"
-
-                    "Use business evidence before making important "
-                    "decisions. Do not invent tool results. "
-                    "Do not claim an intervention worked until its "
-                    "result has been observed."
-                ),
-            },
-            {
-                "role": "user",
-                "content": (
-                    (
-                        f"Resume operating simulation run {run_id}. "
-                        "Inspect the current business state before taking "
-                        "further action."
-                    )
-                    if resumed
-                    else
-                    (
-                        f"Begin operating simulation run {run_id}. "
-                        "Work autonomously toward the business goal."
-                    )
-                ),
-            },
-        ]
-
-        # -----------------------------------------------------
-        # AGENT LOOP
-        # -----------------------------------------------------
-
-        for round_number in range(
-            1,
-            max_tool_rounds + 1,
-        ):
-
-            run_state.rounds = round_number
-
-            print(
-                f"\n=== TOOL ROUND {round_number} ==="
+            groq_tools = mcp_tools_to_groq(
+                agent_tools
             )
 
-            response = llm.create_tool_call_response(
-                messages=messages,
-                tools=groq_tools,
-            )
+            # -----------------------------------------------------
+            # INITIAL LLM CONTEXT
+            # -----------------------------------------------------
 
-            assistant_message = (
-                response
-                .choices[0]
-                .message
-            )
+            messages: list[Any] = [
+                {
+                    "role": "system",
+                    "content": (
+                        "You are an autonomous business operator "
+                        "inside a simulated B2B SaaS company.\n\n"
 
-            # Save the assistant message because Groq requires
-            # the tool-call message to remain in conversation
-            # history before tool results are returned.
-            messages.append(
-                assistant_message
-            )
+                        "Your objective is to increase trial-to-paid "
+                        "conversion to at least 40% within 30 simulated "
+                        "days while spending no more than 2000.\n\n"
 
-            tool_calls = (
-                assistant_message.tool_calls
-                or []
-            )
+                        "Use the available tools to investigate the "
+                        "business, inspect interventions, take actions, "
+                        "advance simulated time, and check progress.\n\n"
 
-            # -------------------------------------------------
-            # MODEL DID NOT REQUEST A TOOL
-            # -------------------------------------------------
-
-            if not tool_calls:
-
-                print(
-                    "\nLLM final response:"
-                )
-
-                print(
-                    assistant_message.content
-                )
-
-                # We still perform an objective final goal check.
-                #
-                # The LLM does not decide whether the run actually
-                # succeeded.
-                final_goal_status = await mcp_client.call_tool(
-                    "goal_status",
-                    {
-                        "run_id": run_id,
-                    },
-                )
-
-                run_state.final_goal_status = (
-                    final_goal_status
-                )
-
-                if final_goal_status["status"] in {
-                    "achieved",
-                    "failed",
-                }:
-
-                    complete_business_run(
-                        run_id=run_id,
-                        status=final_goal_status["status"],
-                    )
-
-                    return run_state
-
-                messages.append(
-                    {
-                        "role": "user",
-                        "content": (
-                            "The goal is still in progress. "
-                            "Continue operating using the available tools."
-                        ),
-                    }
-                )
-
-                continue
-
-            # -------------------------------------------------
-            # EXECUTE EVERY TOOL CALL THROUGH MCP
-            # -------------------------------------------------
-
-            for tool_call in tool_calls:
-
-                tool_name = (
-                    tool_call.function.name
-                )
-
-                arguments = json.loads(
-                    tool_call.function.arguments
-                )
-
-                # -------------------------------------------------
-                # FORCE THE CORRECT RUN ID
-                # -------------------------------------------------
-                #
-                # Run identity belongs to the application,
-                # not the LLM.
-
-                if "run_id" in arguments:
-                    arguments["run_id"] = run_id
-
-                print(
-                    "\nTool:",
-                    tool_name,
-                )
-
-                print(
-                    "Arguments:",
-                    arguments,
-                )
-
-                # -------------------------------------------------
-                # EXECUTE THROUGH MCP
-                # -------------------------------------------------
-
-                result = await mcp_client.call_tool(
-                    tool_name=tool_name,
-                    arguments=arguments,
-                )
-
-                print(
-                    "Result:",
-                    json.dumps(
-                        result,
-                        indent=2,
+                        "Use business evidence before making important "
+                        "decisions. Do not invent tool results. "
+                        "Do not claim an intervention worked until its "
+                        "result has been observed."
                     ),
+                },
+                {
+                    "role": "user",
+                    "content": (
+                        (
+                            f"Resume operating simulation run {run_id}. "
+                            "Inspect the current business state before taking "
+                            "further action."
+                        )
+                        if resumed
+                        else
+                        (
+                            f"Begin operating simulation run {run_id}. "
+                            "Work autonomously toward the business goal."
+                        )
+                    ),
+                },
+            ]
+
+            # -----------------------------------------------------
+            # AGENT LOOP
+            # -----------------------------------------------------
+
+            for round_number in range(
+                1,
+                max_tool_rounds + 1,
+            ):
+
+                run_state.rounds = round_number
+
+                print(
+                    f"\n=== TOOL ROUND {round_number} ==="
                 )
 
-                # -------------------------------------------------
-                # RECORD WHAT ACTUALLY HAPPENED
-                # -------------------------------------------------
-
-                run_state.tool_calls.append(
-                    {
-                        "tool_name": tool_name,
-                        "arguments": arguments,
-                        "result": result,
-                    }
+                response = llm.create_tool_call_response(
+                    messages=messages,
+                    tools=groq_tools,
                 )
 
-                # Feed the real MCP result back to Groq.
+                assistant_message = (
+                    response
+                    .choices[0]
+                    .message
+                )
+
+                # Save the assistant message because Groq requires
+                # the tool-call message to remain in conversation
+                # history before tool results are returned.
                 messages.append(
-                    {
-                        "role": "tool",
-                        "tool_call_id": (
-                            tool_call.id
-                        ),
-                        "name": tool_name,
-                        "content": json.dumps(
-                            result
-                        ),
-                    }
+                    assistant_message
                 )
 
-                if tool_name == "goal_status":
+                tool_calls = (
+                    assistant_message.tool_calls
+                    or []
+                )
+
+                # -------------------------------------------------
+                # MODEL DID NOT REQUEST A TOOL
+                # -------------------------------------------------
+
+                if not tool_calls:
+
+                    print(
+                        "\nLLM final response:"
+                    )
+
+                    print(
+                        assistant_message.content
+                    )
+
+                    # We still perform an objective final goal check.
+                    #
+                    # The LLM does not decide whether the run actually
+                    # succeeded.
+                    final_goal_status = await mcp_client.call_tool(
+                        "goal_status",
+                        {
+                            "run_id": run_id,
+                        },
+                    )
 
                     run_state.final_goal_status = (
-                        result
+                        final_goal_status
                     )
 
-                    if result["status"] in {
+                    if final_goal_status["status"] in {
                         "achieved",
                         "failed",
                     }:
 
                         complete_business_run(
                             run_id=run_id,
-                            status=result["status"],
+                            status=final_goal_status["status"],
                         )
 
-                        print(
-                            "\nOperator stopped:",
-                            result["status"],
+                        termination_reason = (
+                            "goal_achieved"
+                            if final_goal_status["status"] == "achieved"
+                            else "goal_failed"
                         )
+
+                        complete_operator_session(
+                            db,
+                            operator_session_id=operator_session_id,
+                            termination_reason=termination_reason,
+                        )
+
+                        db.commit()
 
                         return run_state
 
-        # -----------------------------------------------------
-        # MAX TOOL ROUNDS REACHED
-        # -----------------------------------------------------
+                    messages.append(
+                        {
+                            "role": "user",
+                            "content": (
+                                "The goal is still in progress. "
+                                "Continue operating using the available tools."
+                            ),
+                        }
+                    )
 
-        print(
-            "\nOperator stopped because the maximum "
-            "tool-round limit was reached."
-        )
+                    continue
 
-        # Always finish with an objective goal evaluation.
-        final_goal_status = await mcp_client.call_tool(
-            "goal_status",
-            {
-                "run_id": run_id,
-            },
-        )
+                # -------------------------------------------------
+                # EXECUTE EVERY TOOL CALL THROUGH MCP
+                # -------------------------------------------------
 
-        run_state.final_goal_status = (
-            final_goal_status
-        )
+                for tool_call in tool_calls:
 
-        if final_goal_status["status"] in {
-            "achieved",
-            "failed",
-        }:
+                    tool_name = (
+                        tool_call.function.name
+                    )
 
-            complete_business_run(
-                run_id=run_id,
-                status=final_goal_status["status"],
+                    arguments = json.loads(
+                        tool_call.function.arguments
+                    )
+
+                    # -------------------------------------------------
+                    # FORCE THE CORRECT RUN ID
+                    # -------------------------------------------------
+                    #
+                    # Run identity belongs to the application,
+                    # not the LLM.
+
+                    if "run_id" in arguments:
+                        arguments["run_id"] = run_id
+
+                    print(
+                        "\nTool:",
+                        tool_name,
+                    )
+
+                    print(
+                        "Arguments:",
+                        arguments,
+                    )
+
+                    # -------------------------------------------------
+                    # EXECUTE THROUGH MCP
+                    # -------------------------------------------------
+
+                    result = await mcp_client.call_tool(
+                        tool_name=tool_name,
+                        arguments=arguments,
+                    )
+
+                    print(
+                        "Result:",
+                        json.dumps(
+                            result,
+                            indent=2,
+                        ),
+                    )
+
+                    # -------------------------------------------------
+                    # RECORD WHAT ACTUALLY HAPPENED
+                    # -------------------------------------------------
+
+                    run_state.tool_calls.append(
+                        {
+                            "tool_name": tool_name,
+                            "arguments": arguments,
+                            "result": result,
+                        }
+                    )
+
+                    save_operator_tool_call(
+                        db=db,
+                        operator_session_id=operator_session_id,
+                        sequence_number=len(
+                            run_state.tool_calls
+                        ),
+                        tool_name=tool_name,
+                        arguments=arguments,
+                        result=result,
+                    )
+
+                    db.commit()
+
+                    # Feed the real MCP result back to Groq.
+                    messages.append(
+                        {
+                            "role": "tool",
+                            "tool_call_id": (
+                                tool_call.id
+                            ),
+                            "name": tool_name,
+                            "content": json.dumps(
+                                result
+                            ),
+                        }
+                    )
+
+                    if tool_name == "goal_status":
+
+                        run_state.final_goal_status = (
+                            result
+                        )
+
+                        if result["status"] in {
+                            "achieved",
+                            "failed",
+                        }:
+
+                            complete_business_run(
+                                run_id=run_id,
+                                status=result["status"],
+                            )
+
+                            termination_reason = (
+                                "goal_achieved"
+                                if result["status"] == "achieved"
+                                else "goal_failed"
+                            )
+
+                            complete_operator_session(
+                                db,
+                                operator_session_id=operator_session_id,
+                                termination_reason=termination_reason,
+                            )
+
+                            db.commit()
+
+                            print(
+                                "\nOperator stopped:",
+                                result["status"],
+                            )
+
+                            return run_state
+
+            # -----------------------------------------------------
+            # MAX TOOL ROUNDS REACHED
+            # -----------------------------------------------------
+
+            print(
+                "\nOperator stopped because the maximum "
+                "tool-round limit was reached."
             )
 
-        return run_state
+            # Always finish with an objective goal evaluation.
+            final_goal_status = await mcp_client.call_tool(
+                "goal_status",
+                {
+                    "run_id": run_id,
+                },
+            )
+
+            run_state.final_goal_status = (
+                final_goal_status
+            )
+
+            if final_goal_status["status"] in {
+                "achieved",
+                "failed",
+            }:
+
+                complete_business_run(
+                    run_id=run_id,
+                    status=final_goal_status["status"],
+                )
+
+                termination_reason = (
+                    "goal_achieved"
+                    if final_goal_status["status"] == "achieved"
+                    else "goal_failed"
+                )
+            else:
+                termination_reason = (
+                    'max_tool_rounds'
+                )
+
+            complete_operator_session(
+                db,
+                operator_session_id=operator_session_id,
+                termination_reason=termination_reason,
+            )
+
+            db.commit()
+
+            return run_state
+
+        except Exception:
+            complete_operator_session(
+                db,
+                operator_session_id=operator_session_id,
+                termination_reason='execution_error',
+            )
+
+            db.commit()
+            raise
+
+        finally:
+            db.close()

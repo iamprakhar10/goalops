@@ -121,6 +121,7 @@ def complete_operator_session(
         'goal_achieved',
         'goal_failed',
         'max_tool_rounds',
+        "execution_error",
     }
 
     if termination_reason not in allowed_reasons:
