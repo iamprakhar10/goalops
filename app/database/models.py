@@ -1,7 +1,7 @@
 from __future__ import annotations
 from datetime import datetime
 
-from sqlalchemy import DateTime, String, func, ForeignKey
+from sqlalchemy import DateTime, String, func, ForeignKey, JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database.db import Base
@@ -589,6 +589,11 @@ class SimulationRun(Base):
         cascade="all, delete-orphan",
     )
 
+    operator_sessions: Mapped[list[OperatorSession]] = relationship(
+        back_populates="simulation_run",
+        cascade="all, delete-orphan",
+    )
+
 
 
 """
@@ -651,6 +656,121 @@ class SimulationRunIntervention(Base):
         default="active",
     )
 
-    simulation_run: Mapped["SimulationRun"] = relationship(
+    simulation_run: Mapped[SimulationRun] = relationship(
         back_populates="interventions",
+    )
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+class OperatorSession(Base):
+    """
+    Represents one execution session of the autonomous operator
+
+    A single simulation run can have multiple operator sessions when the 
+    run is stopped and later resumed
+    """
+
+    __tablename__ = 'operator_sessions'
+
+    id: Mapped[int] = mapped_column(
+        primary_key=True,
+    )
+
+    simulation_run_id: Mapped[int] = mapped_column(
+        ForeignKey('simulation_runs.id'),
+    )
+
+    termination_reason: Mapped[str | None] = mapped_column(
+        String(50),
+        nullable=True,
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+    )
+
+    completed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+
+    simulation_run: Mapped[SimulationRun] = relationship(
+        back_populates="operator_sessions",
+    )
+
+    tool_calls: Mapped[list[OperatorToolCall]] = relationship(
+        back_populates='operator_session',
+        cascade='all, delete-orphan'
+    )
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+class OperatorToolCall(Base):
+    """
+    Represents one MCP call made by the autonomous operaotr
+
+    Tool calls are persisted so the complete operator behaviour can 
+    be reconstructed even when a simulation run is resumed later
+    """
+
+    __tablename__ = "operator_tool_calls"
+
+    id: Mapped[int] = mapped_column(
+        primary_key=True,
+    )
+
+    operator_session_id: Mapped[int] = mapped_column(
+        ForeignKey("operator_sessions.id"),
+    )
+
+    sequence_number: Mapped[int] = mapped_column()
+
+    tool_name: Mapped[str] = mapped_column(
+        String(100),
+    )
+
+    arguments: Mapped[dict] = mapped_column(
+        JSON,
+    )
+
+    result: Mapped[dict] = mapped_column(
+        JSON,
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+    )
+
+    operator_session: Mapped[OperatorSession] = relationship(
+        back_populates="tool_calls",
     )
