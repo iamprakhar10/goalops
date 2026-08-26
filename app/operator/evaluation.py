@@ -51,6 +51,8 @@ class OperatorRunEvaluation:
     inspected_before_first_intervention:
         Whether business evidence was inspected before the first
         intervention was launched.
+
+    termination_reason: The reason why operator was stopped
     """
 
     goal_status: str
@@ -66,6 +68,8 @@ class OperatorRunEvaluation:
 
     inspected_business: bool
     inspected_before_first_intervention: bool
+
+    #termination_reason: str
 
 
 
@@ -197,6 +201,10 @@ def evaluate_tool_operator_run(
             "without final goal status"
         )
 
+    # if run_state.termination_reason is None:
+    #     raise ValueError(
+    #         "Operator run has no termination reason."
+    #     )
 
     # ---------------------------------------------------------
     # FIND INTERVENTIONS THAT WERE ACTUALLY LAUNCHED
@@ -285,4 +293,7 @@ def evaluate_tool_operator_run(
         inspected_before_first_intervention=(
             inspected_before_first_intervention
         ),
+        # termination_reason=(
+        #     run_state.termination_reason
+        # ),
     )

@@ -46,6 +46,9 @@ class ToolOperatorRunState:
 
     rounds:
         Number of LLM tool-selection rounds completed.
+
+    termination_reason:
+        The reason why the operator terminated the flow
     """
 
     run_id: int | None=None
@@ -57,6 +60,9 @@ class ToolOperatorRunState:
     final_goal_status: dict[str, Any] | None = None
 
     rounds: int = 0
+
+    # Why this operator session stopped
+    #termination_reason: str | None = None
 
 
 
@@ -72,17 +78,17 @@ class ToolOperatorRunState:
 async def run_tool_operator(
         *,
         max_tool_rounds: int,
-        random_seed: int|None = None,
-        run_id: int|None = None,
+        random_seed: int | None = None,
+        run_id: int | None = None,
 ) -> ToolOperatorRunState:
     """
     Run one MCP-discovered GoalOps agent session.
 
-    The application creates and owns the simulation run
+    The application creates and owns the simulation run.
 
-    MCP provides the available business tools
+    MCP provides the available business tools.
 
-    Groq chooses which discovered tool to call
+    Groq chooses which discovered tool to call.
 
     Python executes the tool through MCP and determines objectively
     when the business goal has been achieved or failed.
@@ -90,12 +96,11 @@ async def run_tool_operator(
 
     llm = LLMClient()
     run_state = ToolOperatorRunState()
+
     resumed = run_id is not None
 
-    
-
     if run_id is None and random_seed is None:
-        random_seed=42
+        random_seed = 42
 
     if run_id is not None and random_seed is not None:
         raise ValueError(
@@ -104,24 +109,28 @@ async def run_tool_operator(
         )
 
     async with GoalOpsMCPClient() as mcp_client:
+
         # -----------------------------------------------------
-        # CREATE A PERSISTENT SIMULATION RUN IF "NEEDED"
+        # CREATE OR RESUME A PERSISTENT SIMULATION RUN
         # -----------------------------------------------------
+
         if run_id is None:
-                
+
             run_result = await mcp_client.call_tool(
-                'create_run',
+                "create_run",
                 {
-                    'random_seed': random_seed,
+                    "random_seed": random_seed,
                 },
             )
 
-            run_id = run_result['run_id']
+            run_id = run_result["run_id"]
+
             print(
                 f"\nCreated simulation run: {run_id}"
             )
 
         else:
+
             initial_status = await mcp_client.call_tool(
                 "goal_status",
                 {
@@ -129,9 +138,9 @@ async def run_tool_operator(
                 },
             )
 
-            if initial_status['status'] in {
-                'achieved',
-                'failed',
+            if initial_status["status"] in {
+                "achieved",
+                "failed",
             }:
                 raise ValueError(
                     f"Simulation run {run_id} is already "
@@ -141,12 +150,16 @@ async def run_tool_operator(
             print(
                 f"\nResuming simulation run: {run_id}"
             )
-            run_state.run_id = run_id
+
+        # Works for both new and resumed runs.
+        run_state.run_id = run_id
 
         # -----------------------------------------------------
         # DISCOVER TOOLS FROM MCP
         # -----------------------------------------------------
+
         mcp_tools = await mcp_client.list_tools()
+
         agent_tools = [
             tool
             for tool in mcp_tools.tools
@@ -154,11 +167,13 @@ async def run_tool_operator(
         ]
 
         groq_tools = mcp_tools_to_groq(
-            agent_tools)
+            agent_tools
+        )
 
         # -----------------------------------------------------
         # INITIAL LLM CONTEXT
         # -----------------------------------------------------
+
         messages: list[Any] = [
             {
                 "role": "system",
@@ -201,9 +216,10 @@ async def run_tool_operator(
         # -----------------------------------------------------
         # AGENT LOOP
         # -----------------------------------------------------
+
         for round_number in range(
             1,
-            max_tool_rounds+1,
+            max_tool_rounds + 1,
         ):
 
             run_state.rounds = round_number
@@ -211,6 +227,7 @@ async def run_tool_operator(
             print(
                 f"\n=== TOOL ROUND {round_number} ==="
             )
+
             response = llm.create_tool_call_response(
                 messages=messages,
                 tools=groq_tools,
@@ -222,12 +239,13 @@ async def run_tool_operator(
                 .message
             )
 
-            # Savind the assistant message because Groq requires
+            # Save the assistant message because Groq requires
             # the tool-call message to remain in conversation
-            # history before tool results are returned 
+            # history before tool results are returned.
             messages.append(
                 assistant_message
-            ) 
+            )
+
             tool_calls = (
                 assistant_message.tool_calls
                 or []
@@ -236,6 +254,7 @@ async def run_tool_operator(
             # -------------------------------------------------
             # MODEL DID NOT REQUEST A TOOL
             # -------------------------------------------------
+
             if not tool_calls:
 
                 print(
@@ -265,6 +284,7 @@ async def run_tool_operator(
                     "achieved",
                     "failed",
                 }:
+
                     complete_business_run(
                         run_id=run_id,
                         status=final_goal_status["status"],
@@ -289,6 +309,7 @@ async def run_tool_operator(
             # -------------------------------------------------
 
             for tool_call in tool_calls:
+
                 tool_name = (
                     tool_call.function.name
                 )
@@ -296,17 +317,15 @@ async def run_tool_operator(
                 arguments = json.loads(
                     tool_call.function.arguments
                 )
-                #-------------------------------------------------
+
+                # -------------------------------------------------
                 # FORCE THE CORRECT RUN ID
                 # -------------------------------------------------
                 #
                 # Run identity belongs to the application,
                 # not the LLM.
 
-                if (
-                    "run_id"
-                    in arguments
-                ):
+                if "run_id" in arguments:
                     arguments["run_id"] = run_id
 
                 print(
@@ -325,10 +344,8 @@ async def run_tool_operator(
 
                 result = await mcp_client.call_tool(
                     tool_name=tool_name,
-                    arguments=arguments
+                    arguments=arguments,
                 )
-
-                
 
                 print(
                     "Result:",
@@ -366,17 +383,19 @@ async def run_tool_operator(
 
                 if tool_name == "goal_status":
 
-                    run_state.final_goal_status = result
+                    run_state.final_goal_status = (
+                        result
+                    )
 
                     if result["status"] in {
                         "achieved",
                         "failed",
                     }:
+
                         complete_business_run(
                             run_id=run_id,
-                            status=result['status']
+                            status=result["status"],
                         )
-
 
                         print(
                             "\nOperator stopped:",
@@ -410,6 +429,7 @@ async def run_tool_operator(
             "achieved",
             "failed",
         }:
+
             complete_business_run(
                 run_id=run_id,
                 status=final_goal_status["status"],
