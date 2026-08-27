@@ -12,9 +12,27 @@ operator gathered business evidence before taking an intervention
 
 from dataclasses import dataclass
 
+
+from app.database.db import SessionLocal
+from app.operator.session_store import (
+    get_operator_sessions_for_run,
+    get_operator_tool_calls_for_run,
+)
+from app.simulation.run_store import (
+    get_simulation_run,
+    get_simulation_run_intervention_history,
+)
+
+
 from app.operator.runner import OperatorRunState
 from app.operator.schemas import OperatorAction
 from app.operator.tool_runner import ToolOperatorRunState
+
+
+from app.mcp.tools import (
+    evaluate_business_goal,
+)
+
 
 
 
@@ -52,7 +70,6 @@ class OperatorRunEvaluation:
         Whether business evidence was inspected before the first
         intervention was launched.
 
-    termination_reason: The reason why operator was stopped
     """
 
     goal_status: str
@@ -178,6 +195,16 @@ def evaluate_operator_run(
 
 
 
+
+
+
+
+
+
+
+
+
+
 #_________________________________________________________
 
 # For tool operator
@@ -185,115 +212,140 @@ def evaluate_operator_run(
 
 
 def evaluate_tool_operator_run(
-        run_state: ToolOperatorRunState,
+        run_id: int,
 ) -> OperatorRunEvaluation:
     """
-    Evaluate one COMPLETED MCP-native operator run
+    Evaluate one COMPLETED MCP-native simulation run
 
-    The new operator does not record OperatorDecision objects, instead
-    evaluation uses the actual MCP tools that Groq selected
-    ans the application executed
+    The evaluation includes operator behaviour from every operator
+    session belonging to the simulation run, including resumed sessions.
     """
 
-    if run_state.final_goal_status is None:
-        raise ValueError(
-            "Can not evaluate tool operator run "
-            "without final goal status"
+    db = SessionLocal()
+
+    try:
+
+        tool_calls = get_operator_tool_calls_for_run(
+            db=db,
+            simulation_run_id=run_id,
         )
 
-    # if run_state.termination_reason is None:
-    #     raise ValueError(
-    #         "Operator run has no termination reason."
-    #     )
+        # operator_session = get_operator_sessions_for_run(
+        #     db,
+        #     run_id,
+        # )
 
-    # ---------------------------------------------------------
-    # FIND INTERVENTIONS THAT WERE ACTUALLY LAUNCHED
-    # ---------------------------------------------------------
+        intervention_history = get_simulation_run_intervention_history(
+            db,
+            run_id=run_id,
+        )
 
-    interventions_launched = [
-        tool_call['arguments']['intervention_name']
-        for tool_call in run_state.tool_calls
-        if (
-            tool_call['tool_name']
-            == 'run_intervention'
-            and tool_call['arguments'].get(
-                'intervention_name'
+        # -----------------------------------------------------
+        # OBJECTIVE FINAL BUSINESS RESULT
+        # -----------------------------------------------------
+        #
+        # Use the exact same deterministic goal evaluation that the MCP
+        # goal_status tool uses
+        # We don't infer success from the LLM or from old tool results
+        final_goal_status = evaluate_business_goal(
+            run_id=run_id
+        )
+
+
+        # -----------------------------------------------------
+        # INTERVENTIONS
+        # -----------------------------------------------------
+        #
+        # SimulationRunIntervention is the source of truth for
+        # interventions that were actually launched in the business.
+
+        interventions_launched = [
+            intervention['name']
+            for intervention in intervention_history
+        ]
+
+        # -----------------------------------------------------
+        # BUSINESS INSPECTION
+        # -----------------------------------------------------
+
+        inspected_business = any(
+            tool_call.tool_name == 'business_snapshot'
+            for tool_call in tool_calls
+        )
+
+        # -----------------------------------------------------
+        # INSPECTION BEFORE FIRST INTERVENTION
+        # -----------------------------------------------------
+
+        first_business_snapshot_index: int | None = None
+        first_intervention_index: int | None = None
+
+        for index, tool_call in enumerate(
+            tool_calls
+        ):
+            if (
+                first_business_snapshot_index is None
+                and tool_call.tool_name
+                == "business_snapshot"
+            ):
+                first_business_snapshot_index = index
+
+            if (
+                first_intervention_index is None
+                and tool_call.tool_name
+                == "run_intervention"
+            ):
+                first_intervention_index = index
+
+        if first_intervention_index is None:
+            inspected_before_first_intervention = (
+                inspected_business
             )
+        else:
+            inspected_before_first_intervention = (
+                first_business_snapshot_index is not None
+                and first_business_snapshot_index
+                < first_intervention_index
+            )
+
+        # -----------------------------------------------------
+        # FULL RUN METRICS
+        # -----------------------------------------------------
+        decisions_made = len(
+            tool_calls
         )
-    ]
 
-    # ---------------------------------------------------------
-    # DID THE AGENT INSPECT THE BUSINESS?
-    # ---------------------------------------------------------
+        total_spend = (
+            final_goal_status['max_budget']
+            - final_goal_status['budget_remaining']
+        )
 
-    inspected_business = any(
-        tool_call['tool_name']
-        == 'business_snapshot'
-        for tool_call in run_state.tool_calls
-    )
+        days_used = (
+            final_goal_status["deadline_day"]
+            - final_goal_status["days_remaining"]
+        )
 
-    # ---------------------------------------------------------
-    # DID INSPECTION HAPPEN BEFORE FIRST INTERVENTION?
-    # ---------------------------------------------------------
+        return OperatorRunEvaluation(
+            goal_status=final_goal_status["status"],
+            final_metric=final_goal_status[
+                "current_value"
+            ],
+            target_value=final_goal_status[
+                "target_value"
+            ],
+            total_spend=total_spend,
+            days_used=days_used,
+            decisions_made=decisions_made,
+            interventions_launched=(
+                interventions_launched
+            ),
+            inspected_business=(
+                inspected_business
+            ),
+            inspected_before_first_intervention=(
+                inspected_before_first_intervention
+            ),
+        )
 
-    first_inspection_index: int | None = None
-    first_intervention_index: int | None = None
-
-    for index, tool_call in enumerate(
-        run_state.tool_calls
-    ):
-        if (
-            tool_call['tool_name']
-            == 'business_snapshot'
-            and first_inspection_index is None
-        ):
-            first_inspection_index = index
-
-        if (
-            tool_call['tool_name']
-            == 'run_intervention'
-            and first_intervention_index is None
-        ):
-            first_intervention_index = index
-
-    inspected_before_first_intervention = (
-        first_inspection_index is not None
-        and first_intervention_index is not None
-        and first_inspection_index
-        < first_intervention_index
-    )
-
-    goal_status = run_state.final_goal_status
-
-    return OperatorRunEvaluation(
-        goal_status=goal_status["status"],
-        final_metric=goal_status["current_value"],
-        target_value=goal_status["target_value"],
-
-        total_spend=(
-            goal_status["max_budget"]
-            - goal_status["budget_remaining"]
-        ),
-
-        days_used=(
-            goal_status["deadline_day"]
-            - goal_status["days_remaining"]
-        ),
-
-        decisions_made=len(
-            run_state.tool_calls
-        ),
-
-        interventions_launched=(
-            interventions_launched
-        ),
-
-        inspected_business=inspected_business,
-
-        inspected_before_first_intervention=(
-            inspected_before_first_intervention
-        ),
-        # termination_reason=(
-        #     run_state.termination_reason
-        # ),
-    )
+    finally:
+        db.close()
