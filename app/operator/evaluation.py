@@ -10,7 +10,7 @@ operator gathered business evidence before taking an intervention
 """
 
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 
 from app.database.db import SessionLocal
@@ -86,8 +86,11 @@ class OperatorRunEvaluation:
     inspected_business: bool
     inspected_before_first_intervention: bool
 
-    #termination_reason: str
-
+    operator_session_count: int=1
+    resume_count: int=0
+    termination_history: list[str]= field(
+        default_factory=list
+    )
 
 
 
@@ -230,10 +233,10 @@ def evaluate_tool_operator_run(
             simulation_run_id=run_id,
         )
 
-        # operator_session = get_operator_sessions_for_run(
-        #     db,
-        #     run_id,
-        # )
+        operator_sessions = get_operator_sessions_for_run(
+            db,
+            run_id,
+        )
 
         intervention_history = get_simulation_run_intervention_history(
             db,
@@ -325,6 +328,21 @@ def evaluate_tool_operator_run(
             - final_goal_status["days_remaining"]
         )
 
+        operator_session_count = len(
+            operator_sessions
+        )
+
+        resume_count = max(
+            operator_session_count - 1,
+            0,
+        )
+
+        termination_history = [
+            session.termination_reason
+            for session in operator_sessions
+            if session.termination_reason is not None
+        ]
+
         return OperatorRunEvaluation(
             goal_status=final_goal_status["status"],
             final_metric=final_goal_status[
@@ -344,6 +362,13 @@ def evaluate_tool_operator_run(
             ),
             inspected_before_first_intervention=(
                 inspected_before_first_intervention
+            ),
+            operator_session_count=(
+                operator_session_count
+            ),
+            resume_count=resume_count,
+            termination_history=(
+                termination_history
             ),
         )
 

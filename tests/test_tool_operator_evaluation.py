@@ -220,3 +220,12 @@ def test_tool_operator_evaluation(
     assert evaluation.interventions_launched == [
         "guided_integration_help",
     ]
+
+    assert evaluation.operator_session_count == 2
+
+    assert evaluation.resume_count == 1
+
+    assert evaluation.termination_history == [
+        "max_tool_rounds",
+        "goal_achieved",
+    ]

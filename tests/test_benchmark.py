@@ -33,10 +33,21 @@ def make_evaluation(
     interventions_launched: list[str],
     inspected_business: bool = True,
     inspected_before_first_intervention: bool = True,
+    operator_session_count: int = 1,
+    resume_count: int = 0,
+    termination_history: list[str] | None = None,
 ) -> OperatorRunEvaluation:
-    """
-    Create a deterministic operator evaluation for benchmark tests.
-    """
+
+    if termination_history is None:
+        termination_history = [
+            (
+                "goal_achieved"
+                if goal_status == "achieved"
+                else "goal_failed"
+                if goal_status == "failed"
+                else "max_tool_rounds"
+            )
+        ]
 
     return OperatorRunEvaluation(
         goal_status=goal_status,
@@ -50,8 +61,14 @@ def make_evaluation(
         inspected_before_first_intervention=(
             inspected_before_first_intervention
         ),
+        operator_session_count=(
+            operator_session_count
+        ),
+        resume_count=resume_count,
+        termination_history=(
+            termination_history
+        ),
     )
-
 
 def test_benchmark_aggregation() -> None:
     """
