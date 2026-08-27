@@ -18,6 +18,8 @@ async def main() -> None:
         seeds=[
             1,
             2,
+            3,
+            4,
         ],
         max_tool_rounds=9,
     )

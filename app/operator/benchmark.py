@@ -53,7 +53,6 @@ class BenchmarkResult:
     successful_runs: int
     failed_runs: int
     in_progress_runs: int
-
     execution_error_runs: int
 
     success_rate: float
@@ -66,6 +65,10 @@ class BenchmarkResult:
     inspected_business_rate: float
     inspected_before_action_rate: float
 
+    average_operator_sessions: float
+    average_resumes: float
+
+    termination_counts: dict[str, int]
     intervention_counts: dict[str, int]
 
     runs: list[BenchmarkRunResult] = field(
@@ -181,7 +184,7 @@ def aggregate_benchmark_results(
             and result.evaluation is not None
         )
     ]
-
+    
     successful_runs = sum(
         1
         for result in completed_results
@@ -265,6 +268,16 @@ def aggregate_benchmark_results(
             / completed_count
         ) * 100
 
+        average_operator_sessions = sum(
+            result.evaluation.operator_session_count
+            for result in completed_results
+        ) / completed_count
+
+        average_resumes = sum(
+            result.evaluation.resume_count
+            for result in completed_results
+        ) / completed_count
+
     else:
         average_final_metric = 0.0
         average_spend = 0.0
@@ -272,8 +285,11 @@ def aggregate_benchmark_results(
         average_tool_calls = 0.0
         inspected_business_rate = 0.0
         inspected_before_action_rate = 0.0
+        average_operator_sessions = 0.0
+        average_resumes = 0.0
 
     intervention_counts: dict[str, int] = {}
+    termination_counts: dict[str, int] = {}
 
     for result in completed_results:
         for intervention_name in (
@@ -289,16 +305,31 @@ def aggregate_benchmark_results(
                 + 1
             )
 
+        for termination_reason in (
+            result.evaluation.termination_history
+        ):
+            termination_counts[
+                termination_reason
+            ] = (
+                termination_counts.get(
+                    termination_reason,
+                    0,
+                )
+                + 1
+            )
+
     return BenchmarkResult(
         total_runs=total_runs,
         successful_runs=successful_runs,
         failed_runs=failed_runs,
         in_progress_runs=in_progress_runs,
         execution_error_runs=execution_error_runs,
+
         success_rate=round(
             success_rate,
             2,
         ),
+
         average_final_metric=round(
             average_final_metric,
             2,
@@ -315,6 +346,7 @@ def aggregate_benchmark_results(
             average_tool_calls,
             2,
         ),
+
         inspected_business_rate=round(
             inspected_business_rate,
             2,
@@ -323,6 +355,18 @@ def aggregate_benchmark_results(
             inspected_before_action_rate,
             2,
         ),
+
+        average_operator_sessions=round(
+            average_operator_sessions,
+            2,
+        ),
+        average_resumes=round(
+            average_resumes,
+            2,
+        ),
+
+        termination_counts=termination_counts,
+
         intervention_counts=intervention_counts,
         runs=run_results,
     )

@@ -23,9 +23,14 @@ async def main() -> None:
     """
 
     run_state = await run_tool_operator(
-        max_tool_rounds=8,
+        max_tool_rounds=3,
         random_seed=42,
     )
+
+    if run_state.run_id is None:
+        raise ValueError(
+            "Operator run did not produce a simulation run id."
+        )
 
     evaluation = evaluate_tool_operator_run(
         run_state
