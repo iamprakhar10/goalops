@@ -108,8 +108,13 @@ async def run_benchmark(
                 max_tool_rounds=max_tool_rounds,
             )
 
+            if run_state.run_id is None:
+                raise ValueError(
+                    "Operator run did not produce a simulation run id."
+                )
+            
             evaluation = evaluate_tool_operator_run(
-                run_state=run_state,
+                run_id=run_state.run_id,
             )
 
             run_results.append(
