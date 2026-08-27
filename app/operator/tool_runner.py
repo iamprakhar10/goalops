@@ -463,11 +463,7 @@ async def run_tool_operator(
             # MAX TOOL ROUNDS REACHED
             # -----------------------------------------------------
 
-            print(
-                "\nOperator stopped because the maximum "
-                "tool-round limit was reached."
-            )
-
+        
             # Always finish with an objective goal evaluation.
             final_goal_status = await mcp_client.call_tool(
                 "goal_status",
@@ -484,7 +480,6 @@ async def run_tool_operator(
                 "achieved",
                 "failed",
             }:
-
                 complete_business_run(
                     run_id=run_id,
                     status=final_goal_status["status"],
@@ -495,18 +490,33 @@ async def run_tool_operator(
                     if final_goal_status["status"] == "achieved"
                     else "goal_failed"
                 )
-            else:
-                termination_reason = (
-                    'max_tool_rounds'
+
+                complete_operator_session(
+                    db,
+                    operator_session_id=operator_session_id,
+                    termination_reason=termination_reason,
                 )
 
-            complete_operator_session(
-                db,
-                operator_session_id=operator_session_id,
-                termination_reason=termination_reason,
-            )
+                db.commit()
 
-            db.commit()
+                print(
+                    "\nOperator stopped:",
+                    final_goal_status["status"],
+                )
+
+            else:
+                complete_operator_session(
+                    db,
+                    operator_session_id=operator_session_id,
+                    termination_reason="max_tool_rounds",
+                )
+
+                db.commit()
+
+                print(
+                    "\nOperator stopped because the maximum "
+                    "tool-round limit was reached."
+                )
 
             return run_state
 

@@ -8,7 +8,7 @@ Only runs created during the benchmark are included in its statistics.
 Historical simulation runs already present in the database are not included
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 from app.operator.evaluation import (
     OperatorRunEvaluation,
@@ -83,6 +83,7 @@ async def run_benchmark(
         seeds: list[int],
         max_tool_rounds: int=12,
         delay_between_runs: float=45.0,
+        max_sessions_per_run: int=2,
 ) -> BenchmarkResult:
     """
     Run the autonomous operator independently across multiple seeds
@@ -92,6 +93,11 @@ async def run_benchmark(
 
     Results are aggregated only from the runs created by this benchmark
     """
+    if max_sessions_per_run < 1:
+        raise ValueError(
+            "max_sessions_per_run must be atlest 1."
+        )
+
     if not seeds:
         raise ValueError(
             "Benchmark requires at leastone random seed."
@@ -120,10 +126,42 @@ async def run_benchmark(
                 run_id=run_state.run_id,
             )
 
+            session_number=1
+            while (
+                evaluation.goal_status == 'in_progress'
+                and session_number < max_sessions_per_run
+            ):
+                session_number += 1
+                print()
+                print(
+                    f"Resuming simulation run {run_state.run_id} "
+                    f"for operator session {session_number}"
+                )
+                await run_tool_operator(
+                    run_id=run_state.run_id,
+                    max_tool_rounds=max_tool_rounds,
+                )
+
+                evaluation = evaluate_tool_operator_run(
+                    run_id=run_state.run_id
+                )
+
+            if (
+                evaluation.goal_status == 'in_progress'
+                and session_number >= max_sessions_per_run
+            ):
+                evaluation = replace(
+                    evaluation,
+                    unfinished_reason="max_sessions_per_run",
+                )
+            # execution_status="completed" does not mean the business goal was achieved.
+            # It means:
+            #The operator/benchmark execution finished normally without a technical exception.
             run_results.append(
                 BenchmarkRunResult(
                     random_seed=seed,
                     evaluation=evaluation,
+                    execution_status='completed'
                 )
             )
             

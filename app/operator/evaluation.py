@@ -92,6 +92,8 @@ class OperatorRunEvaluation:
         default_factory=list
     )
 
+    unfinished_reason: str | None = None
+
 
 
 

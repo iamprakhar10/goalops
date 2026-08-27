@@ -18,6 +18,7 @@ that benchmark aggregation correctly handles:
 - resume counts
 - termination history
 """
+from dataclasses import replace
 
 from app.operator.benchmark import (
     BenchmarkRunResult,
@@ -41,6 +42,7 @@ def make_evaluation(
     operator_session_count: int = 1,
     resume_count: int = 0,
     termination_history: list[str] | None = None,
+
 ) -> OperatorRunEvaluation:
     """
     Create a deterministic operator evaluation for benchmark tests.
@@ -550,3 +552,39 @@ def test_empty_benchmark_is_rejected() -> None:
 
     except ValueError:
         pass
+
+
+
+
+
+
+
+def test_in_progress_run_records_max_sessions_reason():
+    evaluation = make_evaluation(
+        goal_status="in_progress",
+        final_metric=35.0,
+        total_spend=1500.0,
+        days_used=14,
+        decisions_made=12,
+        interventions_launched=[
+            "guided_integration_help",
+            "onboarding_email",
+        ],
+        operator_session_count=3,
+        resume_count=2,
+        termination_history=[
+            "max_tool_rounds",
+            "max_tool_rounds",
+            "max_tool_rounds",
+        ],
+    )
+
+    evaluation = replace(
+        evaluation,
+        unfinished_reason="max_sessions_per_run",
+    )
+
+    assert (
+        evaluation.unfinished_reason
+        == "max_sessions_per_run"
+    )
