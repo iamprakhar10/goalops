@@ -15,13 +15,9 @@ async def main() -> None:
     """
 
     benchmark = await run_benchmark(
-        seeds=[
-            1,
-            2,
-            5,
-        ],
-        max_tool_rounds=4,
-        max_sessions_per_run=3,
+        seeds=list(range(1,11)),
+        max_tool_rounds=12,
+        max_sessions_per_run=2,
         delay_between_runs=15.0,
     )
 
