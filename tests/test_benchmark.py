@@ -3,7 +3,7 @@ Deterministic tests for multi-run benchmark aggregation.
 
 These tests do not call Groq, MCP, the simulator, or the database.
 
-Instead, they construct known OperatorRunEvaluation objects and verify
+Instead, they construct known SimulationRunEvaluation objects and verify
 that benchmark aggregation correctly handles:
 
 - achieved runs
@@ -22,7 +22,7 @@ from app.operator.benchmark import (
     aggregate_benchmark_results,
     run_benchmark,
 )
-from app.operator.evaluation import OperatorRunEvaluation
+from app.operator.evaluation import SimulationRunEvaluation
 from app.operator.tool_runner import ToolOperatorRunState
 
 
@@ -39,7 +39,7 @@ def make_evaluation(
     operator_session_count: int = 1,
     resume_count: int = 0,
     termination_history: list[str] | None = None,
-) -> OperatorRunEvaluation:
+) -> SimulationRunEvaluation:
 
     if termination_history is None:
         termination_history = [
@@ -52,7 +52,7 @@ def make_evaluation(
             )
         ]
 
-    return OperatorRunEvaluation(
+    return SimulationRunEvaluation(
         goal_status=goal_status,
         final_metric=final_metric,
         target_value=40.0,
@@ -566,7 +566,7 @@ async def test_run_benchmark_records_max_sessions_reason(
     def fake_evaluate_tool_operator_run(
         *,
         run_id: int,
-    ) -> OperatorRunEvaluation:
+    ) -> SimulationRunEvaluation:
         return next(evaluations)
 
     monkeypatch.setattr(

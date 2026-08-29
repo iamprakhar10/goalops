@@ -11,7 +11,7 @@ Historical simulation runs already present in the database are not included
 from dataclasses import dataclass, field, replace
 
 from app.operator.evaluation import (
-    OperatorRunEvaluation,
+    SimulationRunEvaluation,
     evaluate_tool_operator_run,
 )
 from app.operator.tool_runner import run_tool_operator
@@ -37,7 +37,7 @@ class BenchmarkRunResult:
 
     random_seed: int
     run_id: int | None
-    evaluation: OperatorRunEvaluation | None
+    evaluation: SimulationRunEvaluation | None
     execution_status: str = 'completed'
     error_message: str|None = None
 
@@ -176,7 +176,7 @@ async def run_benchmark(
             )
             print(str(exc))
 
-            evaluation: OperatorRunEvaluation | None = None
+            evaluation: SimulationRunEvaluation | None = None
 
             if run_id is not None:
                 try:

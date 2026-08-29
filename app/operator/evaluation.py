@@ -38,7 +38,7 @@ from app.mcp.tools import (
 
 
 @dataclass(frozen=True)
-class OperatorRunEvaluation:
+class SimulationRunEvaluation:
     """
     Summary of one autonomous Operator run
 
@@ -101,7 +101,7 @@ class OperatorRunEvaluation:
 
 def evaluate_operator_run(
         run_state: OperatorRunState,
-) -> OperatorRunEvaluation:
+) -> SimulationRunEvaluation:
     """
     Evaluate one completed aotonomous operator run
 
@@ -173,7 +173,7 @@ def evaluate_operator_run(
 
     goal_status = run_state.final_goal_status
 
-    return OperatorRunEvaluation(
+    return SimulationRunEvaluation(
         goal_status=goal_status['status'],
         final_metric=goal_status['current_value'],
         target_value=goal_status['target_value'],
@@ -218,7 +218,7 @@ def evaluate_operator_run(
 
 def evaluate_tool_operator_run(
         run_id: int,
-) -> OperatorRunEvaluation:
+) -> SimulationRunEvaluation:
     """
     Evaluate one COMPLETED MCP-native simulation run
 
@@ -345,7 +345,7 @@ def evaluate_tool_operator_run(
             if session.termination_reason is not None
         ]
 
-        return OperatorRunEvaluation(
+        return SimulationRunEvaluation(
             goal_status=final_goal_status["status"],
             final_metric=final_goal_status[
                 "current_value"
