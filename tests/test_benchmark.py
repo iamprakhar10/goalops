@@ -14,19 +14,16 @@ that benchmark aggregation correctly handles:
 - success rate
 - inspection behavior
 - intervention counts
-- operator session counts
-- resume counts
-- termination history
+- benchmark session limits
 """
-from dataclasses import replace
-
+import pytest
 from app.operator.benchmark import (
     BenchmarkRunResult,
     aggregate_benchmark_results,
+    run_benchmark,
 )
-from app.operator.evaluation import (
-    OperatorRunEvaluation,
-)
+from app.operator.evaluation import OperatorRunEvaluation
+from app.operator.tool_runner import ToolOperatorRunState
 
 
 def make_evaluation(
@@ -42,11 +39,7 @@ def make_evaluation(
     operator_session_count: int = 1,
     resume_count: int = 0,
     termination_history: list[str] | None = None,
-
 ) -> OperatorRunEvaluation:
-    """
-    Create a deterministic operator evaluation for benchmark tests.
-    """
 
     if termination_history is None:
         termination_history = [
@@ -85,13 +78,12 @@ def test_benchmark_aggregation() -> None:
     """
     Aggregate metrics should be calculated correctly across
     achieved, failed, and in-progress runs.
-
-    Session diagnostics should also include resumed operator runs.
     """
 
     runs = [
         BenchmarkRunResult(
             random_seed=1,
+            run_id=101,
             evaluation=make_evaluation(
                 goal_status="achieved",
                 final_metric=50.0,
@@ -106,6 +98,7 @@ def test_benchmark_aggregation() -> None:
         ),
         BenchmarkRunResult(
             random_seed=2,
+            run_id=102,
             evaluation=make_evaluation(
                 goal_status="achieved",
                 final_metric=45.0,
@@ -116,22 +109,12 @@ def test_benchmark_aggregation() -> None:
                     "guided_integration_help",
                     "onboarding_email",
                 ],
-
-                # This run required one resume:
-                #
-                # Session 1 -> max_tool_rounds
-                # Session 2 -> goal_achieved
-                operator_session_count=2,
-                resume_count=1,
-                termination_history=[
-                    "max_tool_rounds",
-                    "goal_achieved",
-                ],
             ),
             execution_status="completed",
         ),
         BenchmarkRunResult(
             random_seed=3,
+            run_id=103,
             evaluation=make_evaluation(
                 goal_status="failed",
                 final_metric=35.0,
@@ -148,6 +131,7 @@ def test_benchmark_aggregation() -> None:
         ),
         BenchmarkRunResult(
             random_seed=4,
+            run_id=104,
             evaluation=make_evaluation(
                 goal_status="in_progress",
                 final_metric=35.0,
@@ -174,10 +158,6 @@ def test_benchmark_aggregation() -> None:
     assert result.in_progress_runs == 1
     assert result.execution_error_runs == 0
 
-    # ---------------------------------------------------------
-    # BUSINESS METRICS
-    # ---------------------------------------------------------
-
     # 2 achieved out of 4 requested benchmark runs.
     assert result.success_rate == 50.0
 
@@ -193,10 +173,6 @@ def test_benchmark_aggregation() -> None:
     # (6 + 7 + 10 + 9) / 4
     assert result.average_tool_calls == 8.0
 
-    # ---------------------------------------------------------
-    # BEHAVIOR METRICS
-    # ---------------------------------------------------------
-
     assert result.inspected_business_rate == 100.0
 
     # Three of four inspected before taking the first intervention.
@@ -206,38 +182,6 @@ def test_benchmark_aggregation() -> None:
         "guided_integration_help": 3,
         "onboarding_email": 2,
         "workflow_template": 1,
-    }
-
-    # ---------------------------------------------------------
-    # SESSION METRICS
-    # ---------------------------------------------------------
-    #
-    # Session counts:
-    #
-    # seed 1 -> 1
-    # seed 2 -> 2
-    # seed 3 -> 1
-    # seed 4 -> 1
-    #
-    # total = 5 / 4 runs = 1.25
-
-    assert result.average_operator_sessions == 1.25
-
-    # Only seed 2 required a resume.
-    #
-    # (0 + 1 + 0 + 0) / 4 = 0.25
-    assert result.average_resumes == 0.25
-
-    # There are five operator sessions across four runs.
-    #
-    # seed 1 -> goal_achieved
-    # seed 2 -> max_tool_rounds, goal_achieved
-    # seed 3 -> goal_failed
-    # seed 4 -> max_tool_rounds
-    assert result.termination_counts == {
-        "goal_achieved": 2,
-        "max_tool_rounds": 2,
-        "goal_failed": 1,
     }
 
 
@@ -251,6 +195,7 @@ def test_execution_error_is_recorded_without_crashing_aggregation() -> None:
     runs = [
         BenchmarkRunResult(
             random_seed=1,
+            run_id=101,
             evaluation=make_evaluation(
                 goal_status="achieved",
                 final_metric=50.0,
@@ -265,6 +210,7 @@ def test_execution_error_is_recorded_without_crashing_aggregation() -> None:
         ),
         BenchmarkRunResult(
             random_seed=2,
+            run_id=102,
             evaluation=make_evaluation(
                 goal_status="failed",
                 final_metric=35.0,
@@ -280,6 +226,7 @@ def test_execution_error_is_recorded_without_crashing_aggregation() -> None:
         ),
         BenchmarkRunResult(
             random_seed=3,
+            run_id=None,
             evaluation=None,
             execution_status="error",
             error_message="provider error",
@@ -316,22 +263,9 @@ def test_execution_error_is_recorded_without_crashing_aggregation() -> None:
         "workflow_template": 1,
     }
 
-    # Execution errors have no OperatorRunEvaluation, so they do
-    # not contribute fake operator-session metrics.
-    assert result.average_operator_sessions == 1.0
-    assert result.average_resumes == 0.0
-
-    assert result.termination_counts == {
-        "goal_achieved": 1,
-        "goal_failed": 1,
-    }
-
     assert result.runs[2].execution_status == "error"
     assert result.runs[2].evaluation is None
-    assert (
-        result.runs[2].error_message
-        == "provider error"
-    )
+    assert result.runs[2].error_message == "provider error"
 
 
 def test_in_progress_run_is_not_counted_as_failed() -> None:
@@ -343,6 +277,7 @@ def test_in_progress_run_is_not_counted_as_failed() -> None:
     runs = [
         BenchmarkRunResult(
             random_seed=5,
+            run_id=105,
             evaluation=make_evaluation(
                 goal_status="in_progress",
                 final_metric=35.0,
@@ -376,13 +311,6 @@ def test_in_progress_run_is_not_counted_as_failed() -> None:
     assert result.average_days_used == 21.0
     assert result.average_tool_calls == 9.0
 
-    assert result.average_operator_sessions == 1.0
-    assert result.average_resumes == 0.0
-
-    assert result.termination_counts == {
-        "max_tool_rounds": 1,
-    }
-
 
 def test_single_successful_run_aggregation() -> None:
     """
@@ -392,6 +320,7 @@ def test_single_successful_run_aggregation() -> None:
     runs = [
         BenchmarkRunResult(
             random_seed=42,
+            run_id=142,
             evaluation=make_evaluation(
                 goal_status="achieved",
                 final_metric=40.0,
@@ -431,59 +360,6 @@ def test_single_successful_run_aggregation() -> None:
         "onboarding_email": 1,
     }
 
-    assert result.average_operator_sessions == 1.0
-    assert result.average_resumes == 0.0
-
-    assert result.termination_counts == {
-        "goal_achieved": 1,
-    }
-
-
-def test_resumed_run_session_diagnostics() -> None:
-    """
-    Benchmark aggregation should preserve all session termination
-    reasons from a resumed simulation run.
-    """
-
-    runs = [
-        BenchmarkRunResult(
-            random_seed=42,
-            evaluation=make_evaluation(
-                goal_status="achieved",
-                final_metric=40.0,
-                total_spend=1800.0,
-                days_used=21,
-                decisions_made=9,
-                interventions_launched=[
-                    "guided_integration_help",
-                    "onboarding_email",
-                ],
-                operator_session_count=2,
-                resume_count=1,
-                termination_history=[
-                    "max_tool_rounds",
-                    "goal_achieved",
-                ],
-            ),
-            execution_status="completed",
-        ),
-    ]
-
-    result = aggregate_benchmark_results(
-        runs
-    )
-
-    assert result.total_runs == 1
-    assert result.successful_runs == 1
-
-    assert result.average_operator_sessions == 2.0
-    assert result.average_resumes == 1.0
-
-    assert result.termination_counts == {
-        "max_tool_rounds": 1,
-        "goal_achieved": 1,
-    }
-
 
 def test_all_runs_can_be_execution_errors() -> None:
     """
@@ -494,12 +370,14 @@ def test_all_runs_can_be_execution_errors() -> None:
     runs = [
         BenchmarkRunResult(
             random_seed=1,
+            run_id=None,
             evaluation=None,
             execution_status="error",
             error_message="provider error",
         ),
         BenchmarkRunResult(
             random_seed=2,
+            run_id=None,
             evaluation=None,
             execution_status="error",
             error_message="another provider error",
@@ -531,12 +409,6 @@ def test_all_runs_can_be_execution_errors() -> None:
 
     assert result.intervention_counts == {}
 
-    # Execution errors do not have OperatorRunEvaluation objects,
-    # so there are no completed-session diagnostics to aggregate.
-    assert result.average_operator_sessions == 0.0
-    assert result.average_resumes == 0.0
-    assert result.termination_counts == {}
-
 
 def test_empty_benchmark_is_rejected() -> None:
     """
@@ -554,37 +426,176 @@ def test_empty_benchmark_is_rejected() -> None:
         pass
 
 
+def test_execution_error_with_partial_evaluation_is_excluded_from_averages() -> None:
+    """
+    An execution-error run may still have a persisted partial evaluation.
 
+    The partial evaluation should remain available for inspection,
+    but it must not contribute to completed-run aggregate metrics.
+    """
 
+    successful_evaluation = make_evaluation(
+        goal_status="achieved",
+        final_metric=45.0,
+        total_spend=1200.0,
+        days_used=7,
+        decisions_made=6,
+        interventions_launched=[
+            "guided_integration_help",
+        ],
+    )
 
-
-
-def test_in_progress_run_records_max_sessions_reason():
-    evaluation = make_evaluation(
+    partial_evaluation = make_evaluation(
         goal_status="in_progress",
         final_metric=35.0,
         total_spend=1500.0,
         days_used=14,
-        decisions_made=12,
+        decisions_made=8,
         interventions_launched=[
-            "guided_integration_help",
             "onboarding_email",
-        ],
-        operator_session_count=3,
-        resume_count=2,
-        termination_history=[
-            "max_tool_rounds",
-            "max_tool_rounds",
-            "max_tool_rounds",
+            "guided_integration_help",
         ],
     )
 
-    evaluation = replace(
-        evaluation,
-        unfinished_reason="max_sessions_per_run",
+    runs = [
+        BenchmarkRunResult(
+            random_seed=1,
+            run_id=101,
+            evaluation=successful_evaluation,
+            execution_status="completed",
+        ),
+        BenchmarkRunResult(
+            random_seed=5,
+            run_id=105,
+            evaluation=partial_evaluation,
+            execution_status="error",
+            error_message="provider failure",
+        ),
+    ]
+
+    result = aggregate_benchmark_results(
+        runs
     )
+
+    assert result.total_runs == 2
+
+    assert result.successful_runs == 1
+    assert result.failed_runs == 0
+    assert result.in_progress_runs == 0
+    assert result.execution_error_runs == 1
+
+    assert result.success_rate == 50.0
+
+    # Only the normally completed run contributes to averages.
+    assert result.average_final_metric == 45.0
+    assert result.average_spend == 1200.0
+    assert result.average_days_used == 7.0
+    assert result.average_tool_calls == 6.0
+
+    # But the partial evaluation remains available on the run result.
+    assert result.runs[1].evaluation is not None
+    assert (
+        result.runs[1].evaluation.final_metric
+        == 35.0
+    )
+
+
+# NOTE:
+# This test exercises run_benchmark itself rather than only
+# aggregate_benchmark_results.
+#
+# Any async benchmark test uses pytest-anyio because the project
+# already has AnyIO available.
+
+@pytest.mark.anyio
+async def test_run_benchmark_records_max_sessions_reason(
+    monkeypatch,
+) -> None:
+    """
+    An in-progress business run that reaches the configured maximum
+    number of operator sessions should record why the benchmark stopped.
+    """
+
+    evaluations = iter(
+        [
+            make_evaluation(
+                goal_status="in_progress",
+                final_metric=35.0,
+                total_spend=1200.0,
+                days_used=7,
+                decisions_made=4,
+                interventions_launched=[
+                    "guided_integration_help",
+                ],
+                operator_session_count=1,
+                resume_count=0,
+                termination_history=[
+                    "max_tool_rounds",
+                ],
+            ),
+            make_evaluation(
+                goal_status="in_progress",
+                final_metric=35.0,
+                total_spend=1500.0,
+                days_used=14,
+                decisions_made=8,
+                interventions_launched=[
+                    "guided_integration_help",
+                    "onboarding_email",
+                ],
+                operator_session_count=2,
+                resume_count=1,
+                termination_history=[
+                    "max_tool_rounds",
+                    "max_tool_rounds",
+                ],
+            ),
+        ]
+    )
+
+    async def fake_run_tool_operator(
+        *,
+        max_tool_rounds: int,
+        random_seed: int | None = None,
+        run_id: int | None = None,
+    ) -> ToolOperatorRunState:
+        return ToolOperatorRunState(
+            run_id=123,
+        )
+
+    def fake_evaluate_tool_operator_run(
+        *,
+        run_id: int,
+    ) -> OperatorRunEvaluation:
+        return next(evaluations)
+
+    monkeypatch.setattr(
+        "app.operator.benchmark.run_tool_operator",
+        fake_run_tool_operator,
+    )
+
+    monkeypatch.setattr(
+        "app.operator.benchmark.evaluate_tool_operator_run",
+        fake_evaluate_tool_operator_run,
+    )
+
+    result = await run_benchmark(
+        seeds=[5],
+        max_tool_rounds=4,
+        max_sessions_per_run=2,
+        delay_between_runs=0.0,
+    )
+
+    evaluation = result.runs[0].evaluation
+
+    assert evaluation is not None
+
+    assert evaluation.goal_status == "in_progress"
 
     assert (
         evaluation.unfinished_reason
         == "max_sessions_per_run"
     )
+
+    assert evaluation.operator_session_count == 2
+    assert evaluation.resume_count == 1

@@ -36,6 +36,7 @@ class BenchmarkRunResult:
     """
 
     random_seed: int
+    run_id: int | None
     evaluation: OperatorRunEvaluation | None
     execution_status: str = 'completed'
     error_message: str|None = None
@@ -111,6 +112,7 @@ async def run_benchmark(
         print(f"BENCHMARK SEED {seed}")
         print("=" * 60)
 
+        run_id: int | None=None
         try:
             run_state = await run_tool_operator(
                 random_seed=seed,
@@ -161,7 +163,8 @@ async def run_benchmark(
                 BenchmarkRunResult(
                     random_seed=seed,
                     evaluation=evaluation,
-                    execution_status='completed'
+                    execution_status='completed',
+                    run_id=run_id,
                 )
             )
             
@@ -172,12 +175,25 @@ async def run_benchmark(
                 f"ended with an execution error:"
             )
             print(str(exc))
+
+            evaluation: OperatorRunEvaluation | None = None
+
+            if run_id is not None:
+                try:
+                    evaluation = evaluate_tool_operator_run(
+                        run_id=run_id
+                    )
+                except Exception:
+                    evaluation = None
+
             run_results.append(
                 BenchmarkRunResult(
                     random_seed=seed,
-                    evaluation=None,
+                    evaluation=evaluation,
                     execution_status="error",
                     error_message=str(exc),
+                    run_id=run_id,
+
                 )
             )
 
