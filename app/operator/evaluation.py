@@ -40,7 +40,7 @@ from app.mcp.tools import (
 @dataclass(frozen=True)
 class SimulationRunEvaluation:
     """
-    Summary of one autonomous Operator run
+    Summary of one Simulation run
 
     goal_status:
         Final objective state of the business goal
@@ -69,6 +69,10 @@ class SimulationRunEvaluation:
     inspected_before_first_intervention:
         Whether business evidence was inspected before the first
         intervention was launched.
+
+    unfinished_reason:
+        Why the simulation run didn't finished even after multiple
+        OperatorSession
 
     """
 
