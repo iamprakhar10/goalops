@@ -502,59 +502,7 @@ That is an important limitation of the current evaluation methodology.
 
 ---
 
-## Project structure
 
-```text
-autonomous-business-operator/
-│
-├── app/
-│   ├── database/
-│   │   ├── db.py
-│   │   └── models.py
-│   │
-│   ├── goals/
-│   │   ├── models.py
-│   │   └── evaluator.py
-│   │
-│   ├── mcp/
-│   │   ├── server.py
-│   │   ├── client.py
-│   │   └── tools.py
-│   │
-│   ├── operator/
-│   │   ├── benchmark.py
-│   │   ├── evaluation.py
-│   │   ├── llm.py
-│   │   ├── prompts.py
-│   │   ├── runner.py
-│   │   ├── schemas.py
-│   │   ├── session_store.py
-│   │   ├── tool_adapter.py
-│   │   └── tool_runner.py
-│   │
-│   ├── services/
-│   │   ├── analytics.py
-│   │   └── support_analytics.py
-│   │
-│   ├── simulation/
-│   │   ├── engine.py
-│   │   ├── interventions.py
-│   │   ├── run_store.py
-│   │   └── state.py
-│   │
-│   └── scripts/
-│       ├── seed_demo_data.py
-│       ├── run_operator.py
-│       ├── run_tool_operator.py
-│       ├── resume_tool_operator.py
-│       └── run_benchmark.py
-│
-├── alembic/
-│   └── versions/
-│
-├── alembic.ini
-├── pyproject.toml
-└── README.md
 ```
 
 ### Package responsibilities
