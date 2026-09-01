@@ -627,7 +627,6 @@ GROQ_MODEL=<optional-model-name>
 openai/gpt-oss-20b
 ```
 
-Do not commit `.env` or API keys to the repository.
 
 ### Database migrations
 
