@@ -1,14 +1,14 @@
 # GoalOps — Autonomous Business Goal Operator
 
-GoalOps is an experimental autonomous-agent system that operates a **simulated B2B SaaS business** toward a measurable business goal.
+The project is about an experimental autonomous-agent system that operates a **simulated B2B SaaS business** to achieve a measurable business goal.
 
 Instead of giving an LLM direct access to a database or allowing it to directly modify business outcomes, GoalOps separates the system into three parts:
 
 1. **Agent** — decides what action to take.
-2. **Simulation environment** — executes approved actions and determines their business consequences.
+2. **Simulation environment** — Wwe define some actions(not unlimited) and their definition, ie how the business will be affected by these actions
 3. **Evaluator** — objectively measures what happened.
 
-The operator interacts with the simulated business through **MCP (Model Context Protocol) tools**.
+The operator interacts with the simulated business through **MCP tools**.
 
 The current benchmark goal is:
 
@@ -18,18 +18,13 @@ The current benchmark goal is:
 
 ## Why this project?
 
-A simple LLM application can generate recommendations, but that is different from an autonomous system that must:
+We know LLMs can "understand" text very well. We can leverage it and make it select what actions to take to reach to our goals, then calculating what were the results of  those actions(This step is not done by LLM, as we will decide what actually happened, LLM can falsely justify it's actions), feed back the aftermath of those actions to the LLM and so on until it either achieves the goal or fails to achieve it.
 
-- observe a changing environment,
-- choose actions,
-- execute those actions through tools,
-- wait for delayed consequences,
-- observe the resulting state,
-- respect budget and deadline constraints,
-- decide whether to continue or stop,
-- and be evaluated independently of its own claims.
+It therefore can be called Autonomous(ofcourse with limited "freedom").
+We have not made 100s of tools as that would be not be feasable for one person to complete, but the design choices and ideas are sufficient to solve the small problem 
 
-GoalOps was built to explore that complete loop in a controlled environment.
+
+
 
 The simulated environment makes experiments reproducible while keeping the consequences of actions under programmatic control.
 
@@ -186,7 +181,7 @@ This keeps the LLM responsible for **decision-making**, while the simulator rema
 
 ## The simulated business
 
-The seed script creates a deterministic 20-company business world with three broad groups:
+We seed 20 customer companies(of our business) in our simulation, they are like this:
 
 - **6 activated companies** — already completed onboarding and became paid.
 - **8 stalled trial companies** — started onboarding but are stuck, with integration-related support problems.
@@ -214,7 +209,7 @@ The operator can observe business evidence such as:
 - spending,
 - intervention history.
 
-The simulator also stores hidden customer traits:
+Not all customer companies act the same way, the simulator also stores hidden customer traits:
 
 - `intent_score`
 - `engagement_score`
@@ -228,7 +223,7 @@ The operator therefore has to reason from observable business evidence rather th
 
 ## Interventions
 
-The current intervention registry contains three predefined actions:
+Because we don't want to create too much complexity, our current intervention registry contains three predefined actions:
 
 | Intervention | Cost | Duration | Main effect |
 |---|---:|---:|---|
@@ -236,11 +231,11 @@ The current intervention registry contains three predefined actions:
 | `onboarding_email` | $300 | 7 days | Additional onboarding guidance |
 | `workflow_template` | $800 | 7 days | Helps trial companies reach activation faster |
 
-The LLM cannot invent arbitrary interventions.
+The LLM cannot invent arbitrary interventions because it doesn't have full freedom.
 
 It receives the available intervention definitions through MCP and can only request approved actions.
 
-The simulation engine determines the eventual outcome.
+The simulation engine determines the eventual outcome after LLM chooses the interventions.
 
 ---
 
@@ -298,6 +293,8 @@ MCP provides the tool interface through which the agent interacts with the envir
 ---
 
 ## Persistence and simulation runs
+
+We can't run the operator once and if it succeds call it a day, we need multiple runs. It will also tell when the operator fails to achieve the goal what were the reasons
 
 A `SimulationRun` represents one independent simulated business world.
 
@@ -373,7 +370,7 @@ The goal evaluator checks:
 3. whether the deadline has passed,
 4. otherwise, whether the goal remains in progress.
 
-The evaluator does not ask the LLM whether it succeeded.
+The evaluator does not ask the LLM whether it succeeded, because LLM can't be trusted for it's own evaluation.
 
 For example, the LLM may say:
 
@@ -503,37 +500,7 @@ That is an important limitation of the current evaluation methodology.
 ---
 
 
-```
 
-### Package responsibilities
-
-**`app/database/`**
-
-SQLAlchemy database configuration and ORM models.
-
-**`app/goals/`**
-
-Business-goal definitions and deterministic goal evaluation.
-
-**`app/mcp/`**
-
-The MCP boundary: server-exposed tools, their application-layer implementations, and the MCP client wrapper.
-
-**`app/operator/`**
-
-The autonomous decision-making system, including LLM integration, prompts, tool calling, sessions, evaluation, and benchmarking.
-
-**`app/services/`**
-
-Reusable business analytics independent of the LLM and MCP layers.
-
-**`app/simulation/`**
-
-The simulated business world, intervention definitions, time advancement, intervention effects, and persistent simulation-state handling.
-
-**`app/scripts/`**
-
-Command-line entry points for seeding, running, resuming, testing, and benchmarking the system.
 
 ---
 
@@ -558,36 +525,7 @@ SimulationRun
              └── OperatorToolCall
 ```
 
-### Why both customer and user events?
 
-The simulation distinguishes:
-
-**CustomerEvent**
-
-Company-level lifecycle milestones:
-
-```text
-started_trial
-started_onboarding
-completed_onboarding
-converted_to_paid
-churned
-```
-
-**UserEvent**
-
-Individual employee product actions:
-
-```text
-logged_in
-connected_integration
-created_workflow
-ran_workflow
-```
-
-This allows the business analytics layer to reason about both company lifecycle and employee product usage.
-
----
 
 ## Reproducibility
 
@@ -700,43 +638,6 @@ pytest -q
 
 ---
 
-## Design principles
-
-### 1. The LLM does not control business outcomes
-
-The LLM selects actions.
-
-The simulator determines their consequences.
-
-### 2. Goal completion is deterministic
-
-The LLM cannot declare success.
-
-Application code evaluates the actual business state.
-
-### 3. The agent receives observable evidence
-
-Hidden simulation traits are not exposed to the operator.
-
-### 4. Actions are constrained
-
-The operator can only use the tools and interventions exposed by the application.
-
-### 5. Simulation state is persistent
-
-A run can survive beyond one operator session.
-
-### 6. Operator behavior is observable
-
-MCP calls are persisted so the run can be evaluated after execution.
-
-### 7. Evaluation is separated from decision-making
-
-The system does not rely on the agent to grade itself.
-
-### 8. Reproducibility matters
-
-Random seeds allow controlled benchmark experiments.
 
 ---
 
@@ -771,16 +672,16 @@ Those are **future extensions**, not metrics currently implemented by the goal e
 
 ## Current limitations
 
-GoalOps is deliberately a simulated environment, so its results should not be interpreted as evidence of real-world business performance.
+We have deliberately created a simulated environment, so its results can't be interpreted as evidence of real-world business performance.
 
 Current limitations include:
 
 - only one goal metric is currently supported by the goal evaluator,
 - intervention effects are predefined simulation rules,
 - the current benchmark does not provide a no-intervention causal control,
-- the benchmark is relatively small,
+- Due to cost issues, the benchmark is currently small(10 seeds)
 - LLM/provider reliability can affect execution,
-- the simulation's hidden causal structure is hand-designed,
+- the simulation's hidden causal structure is hand-designed which is definitely not the case in real word,
 - the current operator's action space is intentionally constrained.
 
 These limitations are part of the experimental design and provide clear directions for future work.
