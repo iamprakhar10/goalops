@@ -108,7 +108,8 @@ The simulated environment makes experiments reproducible while keeping the conse
 A typical MCP-native run follows this loop:
 
 ```text
-Create SimulationRun
+Create a simulation run(SimulationRun)
+(Starting the process)
         │
         ▼
 Check objective goal status
@@ -117,10 +118,12 @@ Check objective goal status
 LLM receives observable business state
         │
         ▼
-LLM requests MCP tool call(s)
+LLM requests MCP tool call(s) it considers
+we should make to get topur goal
         │
         ▼
 Application executes the tool through MCP
+   (No LLM is used here)
         │
         ▼
 Tool result is persisted
@@ -149,7 +152,7 @@ Goal achieved / failed / execution limit
 
 We seed 20 customer companies(of our business) in our simulation, they are like this:
 
-- **6 activated companies** — already completed onboarding and became paid.
+- **6 activated companies** — already completed onboarding + became paid.
 - **8 stalled trial companies** — started onboarding but are stuck, with integration-related support problems.
 - **6 inactive trial companies** — started trials but have very little product usage.
 
@@ -205,7 +208,7 @@ The simulation engine determines the eventual outcome after LLM chooses the inte
 
 ## MCP architecture
 
-GoalOps uses MCP as the boundary between the autonomous operator and the business environment.
+In short, Local MCP server will be created with self made tools
 
 The MCP server exposes:
 
@@ -270,16 +273,7 @@ It stores persistent simulation-level state such as:
 - random seed,
 - lifecycle status.
 
-`SimulationState` is the Python representation used by the simulation engine:
-
-- current simulated day,
-- active interventions,
-- total spend,
-- random seed.
-
-The persistence layer converts between the in-memory `SimulationState` and database-backed `SimulationRun` / intervention records.
-
-This separation allows the simulation engine to work with a simple state object while allowing runs to survive process boundaries and application restarts.
+.
 
 ### Operator sessions
 
@@ -397,24 +391,6 @@ Each seed creates a new isolated `SimulationRun`.
 - intervention counts,
 - individual run results.
 
-Importantly:
-
-```text
-execution_status = "completed"
-```
-
-means the benchmark/operator execution completed without a technical exception.
-
-It does **not** mean that the business goal was achieved.
-
-Business success is represented separately by:
-
-```text
-evaluation.goal_status
-```
-
-This distinction allows a legitimate business failure to remain different from an infrastructure/runtime failure.
-
 ---
 
 ## Example benchmark
@@ -441,6 +417,7 @@ Average resumes:               0.0
 
 The benchmark also showed different strategies across seeds. For example, some successful runs reached the target with only `onboarding_email`, while others used both `guided_integration_help` and `onboarding_email`.
 
+Eg.
 A separate seed-5 run demonstrated a legitimate business failure:
 
 ```text
@@ -453,13 +430,6 @@ status:            failed
 
 This is useful because the simulator is not designed to guarantee that the operator always succeeds.
 
-### What the benchmark does and does not prove
-
-The current benchmark demonstrates autonomous goal pursuit and measurable operational behavior **inside this simulation**.
-
-It does **not** establish causal business lift relative to a no-intervention control condition.
-
-That is an important limitation of the current evaluation methodology.
 
 ---
 
@@ -607,7 +577,7 @@ pytest -q
 
 ## What kinds of problems can GoalOps solve?
 
-The architecture is intentionally broader than the current conversion-rate example.
+The architecture is more capable than handling only "increase the trial to paid conversion to 40%".
 
 The general problem class is:
 
@@ -636,17 +606,12 @@ Those are **future extensions**, not metrics currently implemented by the goal e
 
 ## Current limitations
 
-We have deliberately created a simulated environment, so its results can't be interpreted as evidence of real-world business performance.
+We can technically go on and on about limitations but to list a few,
+ - It is a simulator, not real world
+ - An intervention here has predefined effect
+ - Cost
 
-Current limitations include:
 
-- only one goal metric is currently supported by the goal evaluator,
-- intervention effects are predefined simulation rules,
-- the current benchmark does not provide a no-intervention causal control,
-- Due to cost issues, the benchmark is currently small(10 seeds)
-- LLM/provider reliability can affect execution,
-- the simulation's hidden causal structure is hand-designed which is definitely not the case in real word,
-- the current operator's action space is intentionally constrained.
 
 These limitations are part of the experimental design and provide clear directions for future work.
 
