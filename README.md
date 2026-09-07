@@ -2,10 +2,10 @@
 
 The project is about an experimental autonomous-agent system that operates a **simulated B2B SaaS business** to achieve a measurable business goal.
 
-Instead of giving an LLM direct access to a database or allowing it to directly modify business outcomes, GoalOps separates the system into three parts:
+GoalOps separates the system into three parts:
 
 1. **Agent** — decides what action to take.
-2. **Simulation environment** — Wwe define some actions(not unlimited) and their definition, ie how the business will be affected by these actions
+2. **Simulation environment** — We define some actions(not unlimited) and their definition, ie how our business will be affected by these actions
 3. **Evaluator** — objectively measures what happened.
 
 The operator interacts with the simulated business through **MCP tools**.
@@ -13,6 +13,8 @@ The operator interacts with the simulated business through **MCP tools**.
 The current benchmark goal is:
 
 > **Increase trial-to-paid conversion to at least 40% within 30 simulated days and within a $2,000 intervention budget.**
+
+### In one line: "I have 20 customers(companies here), only 30% of them are getting converted from trial version to paid version, How to increase that number to 40% within 30 days by spending maximum $2000"
 
 ---
 
@@ -99,24 +101,7 @@ The simulated environment makes experiments reproducible while keeping the conse
                          └──────────────────────┘
 ```
 
-### Core separation
 
-The central design rule is:
-
-```text
-Agent:
-    decides what to do
-
-Environment:
-    determines what actually happens
-
-Evaluator:
-    determines how the run performed
-```
-
-The LLM cannot directly update customer records or declare the business goal achieved.
-
----
 
 ## How an operator run works
 
@@ -173,8 +158,6 @@ The customer data includes:
 - company segment and status,
 - subscriptions,
 - company lifecycle events,
-- employees,
-- employee-level product events,
 - support tickets,
 - hidden simulation profiles.
 
