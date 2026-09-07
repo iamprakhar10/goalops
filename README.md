@@ -155,6 +155,7 @@ LLM decides what to do next
         ▼
 Goal achieved / failed / execution limit
 ```
+![](docs/achieving_failing.png)
 
 When an intervention is launched, it does **not** immediately force a successful outcome.
 
@@ -705,21 +706,5 @@ Possible extensions include:
 
 ---
 
-## Project status
 
-The core autonomous business operator is implemented, including:
 
-```text
-Simulation environment       ✅
-Persistent simulation runs  ✅
-MCP server/client            ✅
-LLM tool calling             ✅
-Autonomous operator loop     ✅
-Operator sessions/resume    ✅
-Tool-call persistence        ✅
-Deterministic evaluation     ✅
-Multi-seed benchmark         ✅
-Automated tests              ✅
-```
-
-The project is now primarily at the stage of **final documentation, analysis, and presentation**, rather than core-system construction.
