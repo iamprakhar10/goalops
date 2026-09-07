@@ -157,26 +157,6 @@ Goal achieved / failed / execution limit
 ```
 ![](docs/achieving_failing.png)
 
-When an intervention is launched, it does **not** immediately force a successful outcome.
-
-For example:
-
-```text
-launch intervention
-        ↓
-intervention becomes active
-        ↓
-simulation time advances
-        ↓
-intervention reaches evaluation day
-        ↓
-simulation engine evaluates affected customers
-        ↓
-business state changes according to
-predefined probabilities + customer traits + randomness
-```
-
-This keeps the LLM responsible for **decision-making**, while the simulator remains responsible for **causal consequences inside the model**.
 
 ---
 
